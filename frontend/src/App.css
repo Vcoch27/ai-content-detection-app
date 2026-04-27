@@ -1,0 +1,43 @@
+:root {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #132a13;
+  background: radial-gradient(circle at top, #f8f9fa, #e9f5db);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+.status-card {
+  background: #ffffff;
+  border: 1px solid #d8f3dc;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(19, 42, 19, 0.08);
+}
+
+pre {
+  margin: 0;
+  background: #f6fff8;
+  border-radius: 8px;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.error {
+  color: #b00020;
+}
