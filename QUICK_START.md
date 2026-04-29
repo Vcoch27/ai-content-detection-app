@@ -3,6 +3,7 @@
 Chạy toàn bộ stack: AI Service → Backend → Frontend
 
 ## Prerequisites
+
 - Java 21+
 - Python 3.8+
 - Node.js 18+
