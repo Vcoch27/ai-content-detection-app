@@ -16,14 +16,37 @@ function App() {
     setIsLoading(true);
     setResult(null);
 
-    // GIẢ LẬP GỌI API (Sau này sẽ thay bằng axios gọi Spring Boot)
-    setTimeout(() => {
-      setIsLoading(false);
-      setResult({
-        prediction: Math.random() > 0.6 ? 1 : 0,
-        confidence: 82 + Math.random() * 14
-      });
-    }, 2800);
+    // Gọi backend Spring Boot gateway: POST /api/predict (multipart "file")
+    (async () => {
+      try {
+        const form = new FormData();
+        form.append('file', selectedFile, selectedFile.name);
+
+        const resp = await fetch('/api/predict', {
+          method: 'POST',
+          body: form,
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`Upstream error ${resp.status}: ${text}`);
+        }
+
+        const data = await resp.json();
+        // Expecting { status, prediction, confidence }
+        setResult({
+          prediction: data.prediction,
+          confidence: data.confidence,
+          status: data.status,
+          raw: data,
+        });
+      } catch (err) {
+        console.error(err);
+        setResult({ error: err.message || 'Request failed' });
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   };
 
   return (
@@ -31,7 +54,6 @@ function App() {
       <Navbar />
 
       <main className="max-w-[1500px] mx-auto py-10 px-6 lg:px-10 grid lg:grid-cols-[380px_1fr] gap-10 items-start">
-
         {/* CỘT TRÁI: ĐIỀU KHIỂN & TRẠNG THÁI */}
         <aside className="lg:sticky lg:top-28 space-y-8">
           <div className="p-8 bg-white rounded-3xl shadow-xl border border-gray-100">
@@ -41,16 +63,18 @@ function App() {
             </h2>
 
             <p className="text-gray-600 mb-6 text-sm">
-              Tải lên một hình ảnh hoặc video để hệ thống Computer Vision phân tích các đặc trưng tần số (FFT) và kết cấu (GLCM) nhằm phát hiện dấu vết của Generative AI.
+              Tải lên một hình ảnh hoặc video để hệ thống Computer Vision phân tích các đặc trưng
+              tần số (FFT) và kết cấu (GLCM) nhằm phát hiện dấu vết của Generative AI.
             </p>
 
             <button
               onClick={handleDetect}
               disabled={!selectedFile || isLoading}
-              className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2.5 group ${!selectedFile || isLoading
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2.5 group ${
+                !selectedFile || isLoading
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
-                }`}
+              }`}
             >
               {isLoading ? (
                 <>
@@ -64,7 +88,9 @@ function App() {
                 </>
               )}
             </button>
-            <div className="mt-4 text-xs text-gray-400 text-center">Yêu cầu: File &lt; 50MB (Đề tài đồ án)</div>
+            <div className="mt-4 text-xs text-gray-400 text-center">
+              Yêu cầu: File &lt; 50MB (Đề tài đồ án)
+            </div>
           </div>
 
           {/* Panel thông số CV (Mẹo để giao diện pro) */}
@@ -92,8 +118,12 @@ function App() {
         {/* CỘT PHẢI: HIỂN THỊ CHÍNH (UPLOADER & RESULT) */}
         <section className="space-y-10">
           <div className="text-left">
-            <h1 className="text-4xl font-extrabold text-gray-950 tracking-tighter">Verifier Suite <span className="text-blue-600">v1.0</span></h1>
-            <p className="text-gray-500 mt-1.5 text-lg">Phòng thí nghiệm Computer Vision - MSSV: 220xxxxx.</p>
+            <h1 className="text-4xl font-extrabold text-gray-950 tracking-tighter">
+              Verifier Suite <span className="text-blue-600">v1.0</span>
+            </h1>
+            <p className="text-gray-500 mt-1.5 text-lg">
+              Phòng thí nghiệm Computer Vision - MSSV: 220xxxxx.
+            </p>
           </div>
 
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100">
@@ -116,7 +146,8 @@ function App() {
       </main>
 
       <footer className="mt-16 py-8 border-t border-gray-100 bg-white text-center text-sm text-gray-500">
-        Đồ án tốt nghiệp chuyên ngành Kỹ thuật phần mềm - Đề tài: XÂY DỰNG MÔ HÌNH PHÁT HIỆN NỘI DUNG AI
+        Đồ án tốt nghiệp chuyên ngành Kỹ thuật phần mềm - Đề tài: XÂY DỰNG MÔ HÌNH PHÁT HIỆN NỘI
+        DUNG AI
       </footer>
     </div>
   );
