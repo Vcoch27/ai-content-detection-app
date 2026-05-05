@@ -17,10 +17,10 @@ Chạy toàn bộ stack: AI Service → Backend → Frontend
 cd ../ai-generated-content-detection
 
 # Chạy uvicorn server
-.\.venv\Scripts\python.exe -m uvicorn api_service:app --host 127.0.0.1 --port 5000 --reload
+.\.venv\Scripts\python.exe -m uvicorn api_service:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-✅ Kiểm tra: http://127.0.0.1:5000/docs
+✅ Kiểm tra: http://127.0.0.1:8000/docs
 
 ---
 
@@ -57,7 +57,7 @@ npm run dev
 
 ## 📋 Workflow đầy đủ
 
-1. **Terminal 1**: Chạy AI Service (port 5000)
+1. **Terminal 1**: Chạy AI Service (port 8000)
 2. **Terminal 2**: Chạy Backend (port 8080)
 3. **Terminal 3**: Chạy Frontend (port 5173)
 4. Mở http://localhost:5173 → Upload ảnh → Bấm **BẮT ĐẦU KIỂM ĐỊNH**
@@ -93,9 +93,9 @@ POST /api/predict (proxied to http://localhost:8080/api/predict)
     ↓
 Backend (Spring Boot, port 8080)
     ↓
-POST http://127.0.0.1:5000/predict
+POST http://127.0.0.1:8000/predict
     ↓
-AI Service (Python FastAPI, port 5000)
+AI Service (Python FastAPI, port 8000)
     ↓
 Response: { "status": "success", "prediction": "AI-GENERATED", "confidence": "58.39%" }
 ```
@@ -104,9 +104,9 @@ Response: { "status": "success", "prediction": "AI-GENERATED", "confidence": "58
 
 ## ⚠️ Troubleshooting
 
-- **Frontend báo lỗi mạng?** → Kiểm tra Backend chạy trên :8080, AI Service chạy trên :5000
-- **Backend trả 502?** → Xem logs, kiểm tra `application.properties` có `ai.service.base-url=http://127.0.0.1:5000`
-- **Port bị chiếm?** → Thay đổi port trong config, mặc định: AI Service :5000, Backend :8080, Frontend :5173
+- **Frontend báo lỗi mạng?** → Kiểm tra Backend chạy trên :8080, AI Service chạy trên :8000
+- **Backend trả 502?** → Xem logs, kiểm tra `application.properties` có `ai.service.base-url=http://127.0.0.1:8000`
+- **Port bị chiếm?** → Thay đổi port trong config, mặc định: AI Service :8000, Backend :8080, Frontend :5173
 
 ---
 

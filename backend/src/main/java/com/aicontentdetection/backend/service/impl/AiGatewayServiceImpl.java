@@ -88,7 +88,7 @@ public class AiGatewayServiceImpl implements AiGatewayService {
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             // Call FastAPI /predict endpoint
-            AiPredictResponseDto response = restTemplate.postForObject(
+                AiPredictResponseDto response = restTemplate.postForObject(
                     predictUrl,
                     requestEntity,
                     AiPredictResponseDto.class
@@ -105,16 +105,18 @@ public class AiGatewayServiceImpl implements AiGatewayService {
 
             log.debug("AI service response: status={}, prediction={}", response.getStatus(), response.getPrediction());
 
-            if (!response.isSuccess()) {
-                log.warn("AI service returned error status: {}, message: {}", response.getStatus(), response.getMessage());
+            AiPredictResponseDto normalizedResponse = AiPredictResponseDto.normalizeFromUpstream(response);
+
+            if (!normalizedResponse.isSuccess()) {
+                log.warn("AI service returned error status: {}, message: {}", normalizedResponse.getStatus(), normalizedResponse.getMessage());
                 throw new AiServiceException(
-                        "AI service returned error: " + response.getMessage(),
+                        "AI service returned error: " + normalizedResponse.getMessage(),
                         502,
-                        response.getMessage()
+                        normalizedResponse.getMessage()
                 );
             }
 
-            return response;
+            return normalizedResponse;
 
         } catch (HttpClientErrorException e) {
             log.error("AI service client error (HTTP {}): {}", e.getStatusCode(), e.getMessage());

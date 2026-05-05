@@ -39,7 +39,7 @@ public class AiGatewayServiceTest {
     void setUp() {
         aiGatewayService = new AiGatewayServiceImpl(restTemplate);
         // Set the configuration properties using reflection
-        ReflectionTestUtils.setField(aiGatewayService, "aiServiceBaseUrl", "http://localhost:8080");
+                ReflectionTestUtils.setField(aiGatewayService, "aiServiceBaseUrl", "http://127.0.0.1:8000");
         ReflectionTestUtils.setField(aiGatewayService, "predictEndpoint", "/predict");
     }
 
@@ -51,12 +51,14 @@ public class AiGatewayServiceTest {
 
         AiPredictResponseDto expectedResponse = AiPredictResponseDto.builder()
                 .status("success")
-                .prediction("AI-GENERATED")
-                .confidence("78.02%")
+                .prediction("AI_GENERATED")
+                .confidence("78.02")
+                .aiProbability(78.02)
+                .realProbability(21.98)
                 .build();
 
         when(restTemplate.postForObject(
-                eq("http://localhost:8080/predict"),
+                eq("http://127.0.0.1:8000/predict"),
                 any(),
                 eq(AiPredictResponseDto.class)
         )).thenReturn(expectedResponse);
@@ -69,6 +71,8 @@ public class AiGatewayServiceTest {
         assertEquals("success", result.getStatus());
         assertEquals("AI-GENERATED", result.getPrediction());
         assertEquals("78.02%", result.getConfidence());
+                assertEquals(78.02, result.getAiProbability());
+                assertEquals(21.98, result.getRealProbability());
         assertTrue(result.isSuccess());
     }
 
