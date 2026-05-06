@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 import { DetectPage } from './pages/DetectPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { FeedbackPage } from './pages/FeedbackPage';
@@ -9,18 +10,10 @@ import { AboutPage } from './pages/AboutPage';
 import { ROUTES } from './constants/theme';
 
 /**
- * Main App Component with Routing
+ * Protected Route wrapper
  */
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check if user is logged in (mock)
-    const user = localStorage.getItem('user');
-    setIsAuthenticated(!!user);
-    setIsLoading(false);
-  }, []);
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -33,10 +26,30 @@ function App() {
     );
   }
 
-  // Protected Route wrapper
-  const ProtectedRoute = ({ children }) => {
-    return isAuthenticated ? children : <Navigate to={ROUTES.LOGIN} replace />;
-  };
+  return isAuthenticated ? children : <Navigate to={ROUTES.LOGIN} replace />;
+}
+
+/**
+ * Main App Component with Routing
+ */
+function App() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated and not on login page
+  if (!isAuthenticated && window.location.pathname !== ROUTES.LOGIN && window.location.pathname !== '/') {
+    return <Navigate to={ROUTES.LOGIN} replace />;
+  }
 
   return (
     <BrowserRouter>
@@ -45,45 +58,17 @@ function App() {
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
 
         {/* Protected Routes */}
-        <Route
-          path={ROUTES.DETECT}
-          element={
-            <ProtectedRoute>
-              <DetectPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.HISTORY}
-          element={
-            <ProtectedRoute>
-              <HistoryPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.FEEDBACK}
-          element={
-            <ProtectedRoute>
-              <FeedbackPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.PROFILE}
-          element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path={ROUTES.DETECT} element={<ProtectedRoute><DetectPage /></ProtectedRoute>} />
+        <Route path={ROUTES.HISTORY} element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+        <Route path={ROUTES.FEEDBACK} element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
+        <Route path={ROUTES.PROFILE} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
         {/* About - public info page */}
         <Route path={ROUTES.ABOUT} element={<AboutPage />} />
 
-        {/* Default redirect */}
-        <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.DETECT} replace />} />
-        <Route path="*" element={<Navigate to={ROUTES.DETECT} replace />} />
+        {/* Default redirect - check auth status */}
+        <Route path={ROUTES.HOME} element={isAuthenticated ? <Navigate to={ROUTES.DETECT} replace /> : <Navigate to={ROUTES.LOGIN} replace />} />
+        <Route path="*" element={isAuthenticated ? <Navigate to={ROUTES.DETECT} replace /> : <Navigate to={ROUTES.LOGIN} replace />} />
       </Routes>
     </BrowserRouter>
   );

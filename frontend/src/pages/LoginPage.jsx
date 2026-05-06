@@ -3,13 +3,14 @@ import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { apiClient } from '../utils/api';
 
 /**
  * LoginPage - Authentication page
  */
 export const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('demo@example.com');
+  const [password, setPassword] = useState('demo123');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,16 +27,17 @@ export const LoginPage = () => {
     }
 
     try {
-      // Mock login - in real app, call API
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Store in localStorage (mock)
-      localStorage.setItem('user', JSON.stringify({ email, username: email.split('@')[0] }));
+      // Call real API login endpoint
+      const response = await apiClient.login(email, password);
+      
+      // Store token and user in localStorage
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
 
       // Redirect to detect page
       window.location.href = '/detect';
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

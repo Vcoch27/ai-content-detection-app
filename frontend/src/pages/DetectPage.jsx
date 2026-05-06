@@ -6,7 +6,6 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { apiClient, handleApiError } from '../utils/api';
-import { simulateAPICall, mockDetectionResult } from '../utils/mockData';
 
 /**
  * DetectPage - Main image detection page
@@ -79,8 +78,8 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      // Mock API call for now
-      const response = await simulateAPICall(mockDetectionResult, 2000);
+      // Call real API detect endpoint
+      const response = await apiClient.detectImage(selectedFile);
       setResult(response);
     } catch (err) {
       const errorResponse = handleApiError(err);
@@ -101,9 +100,14 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      const response = await simulateAPICall(mockDetectionResult, 2000);
+      // For URL detection, we need to fetch the image first and convert to file
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const file = new File([blob], 'image-from-url.jpg', { type: blob.type });
+      
+      const result = await apiClient.detectImage(file);
       setPreview(imageUrl);
-      setResult(response);
+      setResult(result);
     } catch (err) {
       const errorResponse = handleApiError(err);
       setError(errorResponse.message);

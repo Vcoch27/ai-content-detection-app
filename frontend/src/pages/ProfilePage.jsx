@@ -1,22 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Edit2, LogOut } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
-import { mockUserProfile } from '../utils/mockData';
+import { apiClient } from '../utils/api';
 
 /**
  * ProfilePage - User profile and settings
  */
 export const ProfilePage = () => {
-  const [user, setUser] = useState(mockUserProfile);
+  const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedUser, setEditedUser] = useState(user);
+  const [editedUser, setEditedUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load user profile on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          setUser(userData);
+          setEditedUser(userData);
+        } else {
+          setError('User not found');
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to load profile');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   const handleSave = () => {
     setUser(editedUser);
+    localStorage.setItem('user', JSON.stringify(editedUser));
     setIsEditing(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await apiClient.logout();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Still clear storage and redirect even if API call fails
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
   };
 
   const formatDate = (date) => {
@@ -26,6 +66,29 @@ export const ProfilePage = () => {
       day: 'numeric',
     });
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <MainLayout>
+        <Card className="p-4 bg-red-50 border border-red-200">
+          <p className="text-red-600">{error || 'User profile not available'}</p>
+        </Card>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -135,7 +198,12 @@ export const ProfilePage = () => {
 
         {/* Logout */}
         <div className="mt-8">
-          <Button variant="danger" className="w-full" size="lg">
+          <Button 
+            onClick={handleLogout}
+            variant="danger" 
+            className="w-full" 
+            size="lg"
+          >
             <LogOut size={20} /> Logout
           </Button>
         </div>

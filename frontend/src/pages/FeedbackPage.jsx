@@ -4,7 +4,7 @@ import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { simulateAPICall } from '../utils/mockData';
+import { apiClient } from '../utils/api';
 
 /**
  * FeedbackPage - Send feedback about detection results
@@ -15,19 +15,29 @@ export const FeedbackPage = () => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
 
     try {
-      await simulateAPICall({ success: true }, 1500);
+      const feedback = {
+        imageId,
+        isCorrect,
+        message,
+      };
+      
+      await apiClient.submitFeedback(feedback);
       setSubmitted(true);
       setImageId('');
       setMessage('');
       setIsCorrect(true);
 
       setTimeout(() => setSubmitted(false), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to submit feedback');
     } finally {
       setIsLoading(false);
     }
@@ -51,6 +61,12 @@ export const FeedbackPage = () => {
                   Your feedback helps us improve our AI model
                 </p>
               </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600">{error}</p>
             </div>
           )}
 
