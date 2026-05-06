@@ -4,6 +4,7 @@ import com.aicontentdetection.backend.dto.AiPredictResponseDto;
 import com.aicontentdetection.backend.exception.AiServiceException;
 import com.aicontentdetection.backend.exception.GlobalExceptionHandler;
 import com.aicontentdetection.backend.service.AiGatewayService;
+import com.aicontentdetection.backend.service.DetectionRecordService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,11 +34,14 @@ public class AiPredictControllerTest {
     @Mock
     private AiGatewayService aiGatewayService;
 
+        @Mock
+        private DetectionRecordService detectionRecordService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-                AiPredictController aiPredictController = new AiPredictController(aiGatewayService);
+                AiPredictController aiPredictController = new AiPredictController(aiGatewayService, detectionRecordService);
                 HealthController healthController = new HealthController();
                 mockMvc = MockMvcBuilders.standaloneSetup(aiPredictController, healthController)
                 .setControllerAdvice(new GlobalExceptionHandler())

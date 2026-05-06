@@ -1,6 +1,7 @@
 package com.aicontentdetection.backend.controller;
 
 import com.aicontentdetection.backend.dto.AiPredictResponseDto;
+import com.aicontentdetection.backend.service.DetectionRecordService;
 import com.aicontentdetection.backend.service.AiGatewayService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AiPredictController {
 
     private final AiGatewayService aiGatewayService;
+    private final DetectionRecordService detectionRecordService;
 
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     private static final String[] ALLOWED_CONTENT_TYPES = {
@@ -29,8 +31,9 @@ public class AiPredictController {
             "image/x-windows-bmp"
     };
 
-    public AiPredictController(AiGatewayService aiGatewayService) {
+    public AiPredictController(AiGatewayService aiGatewayService, DetectionRecordService detectionRecordService) {
         this.aiGatewayService = aiGatewayService;
+        this.detectionRecordService = detectionRecordService;
     }
 
     /**
@@ -72,6 +75,8 @@ public class AiPredictController {
 
         // Call AI Gateway Service to get prediction
         AiPredictResponseDto prediction = aiGatewayService.predictImage(file);
+
+        detectionRecordService.savePrediction(file, prediction);
 
         log.info("Prediction completed for file: {}. Result: {}",
                 file.getOriginalFilename(), prediction.getPrediction());
