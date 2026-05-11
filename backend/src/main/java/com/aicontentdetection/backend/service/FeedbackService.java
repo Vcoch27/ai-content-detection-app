@@ -4,5 +4,5 @@ import com.aicontentdetection.backend.dto.FeedbackRequestDto;
 import com.aicontentdetection.backend.dto.FeedbackResponseDto;
 
 public interface FeedbackService {
-    FeedbackResponseDto submitFeedback(FeedbackRequestDto request);
+    FeedbackResponseDto submitFeedback(Long userId, FeedbackRequestDto request);
 }

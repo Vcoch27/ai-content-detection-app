@@ -6,6 +6,7 @@ import { HistoryPage } from './pages/HistoryPage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { AboutPage } from './pages/AboutPage';
 import { ROUTES } from './constants/theme';
 
@@ -46,29 +47,71 @@ function App() {
     );
   }
 
-  // Redirect to login if not authenticated and not on login page
-  if (!isAuthenticated && window.location.pathname !== ROUTES.LOGIN && window.location.pathname !== '/') {
-    return <Navigate to={ROUTES.LOGIN} replace />;
-  }
-
   return (
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
 
         {/* Protected Routes */}
-        <Route path={ROUTES.DETECT} element={<ProtectedRoute><DetectPage /></ProtectedRoute>} />
-        <Route path={ROUTES.HISTORY} element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-        <Route path={ROUTES.FEEDBACK} element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
-        <Route path={ROUTES.PROFILE} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route
+          path={ROUTES.DETECT}
+          element={
+            <ProtectedRoute>
+              <DetectPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.HISTORY}
+          element={
+            <ProtectedRoute>
+              <HistoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.FEEDBACK}
+          element={
+            <ProtectedRoute>
+              <FeedbackPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.PROFILE}
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* About - public info page */}
         <Route path={ROUTES.ABOUT} element={<AboutPage />} />
 
         {/* Default redirect - check auth status */}
-        <Route path={ROUTES.HOME} element={isAuthenticated ? <Navigate to={ROUTES.DETECT} replace /> : <Navigate to={ROUTES.LOGIN} replace />} />
-        <Route path="*" element={isAuthenticated ? <Navigate to={ROUTES.DETECT} replace /> : <Navigate to={ROUTES.LOGIN} replace />} />
+        <Route
+          path={ROUTES.HOME}
+          element={
+            isAuthenticated ? (
+              <Navigate to={ROUTES.DETECT} replace />
+            ) : (
+              <Navigate to={ROUTES.LOGIN} replace />
+            )
+          }
+        />
+        <Route
+          path="*"
+          element={
+            isAuthenticated ? (
+              <Navigate to={ROUTES.DETECT} replace />
+            ) : (
+              <Navigate to={ROUTES.LOGIN} replace />
+            )
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

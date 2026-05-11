@@ -59,5 +59,6 @@ export const ROUTES = {
   PROFILE: '/profile',
   ABOUT: '/about',
   LOGIN: '/login',
+  REGISTER: '/register',
   LOGOUT: '/logout',
 };

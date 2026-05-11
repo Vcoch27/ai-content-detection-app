@@ -34,6 +34,12 @@ public class AppUser extends BaseTimestampEntity {
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
+    @Column(name = "avatar_bucket", length = 255)
+    private String avatarBucket;
+
+    @Column(name = "avatar_key", length = 512)
+    private String avatarKey;
+
     @Column(nullable = false, length = 50)
     private String role = "USER";
 }

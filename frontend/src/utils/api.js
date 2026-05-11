@@ -1,150 +1,213 @@
 /**
- * API Client
- * Centralized API calls and request/response handling
+ * API client aligned to the backend contract.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const AWS_REGION = import.meta.env.VITE_AWS_REGION || 'us-east-1';
 
-/**
- * Helper function to add Authorization header
- */
-const getHeaders = (headers = {}) => {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    ...headers,
-    ...(token && { 'Authorization': `Bearer ${token}` }),
+const STORAGE_KEYS = {
+  token: 'token',
+  user: 'user',
+};
+
+class ApiError extends Error {
+  constructor(message, status, payload) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+const clearAuthState = () => {
+  localStorage.removeItem(STORAGE_KEYS.token);
+  localStorage.removeItem(STORAGE_KEYS.user);
+};
+
+const redirectToLogin = () => {
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+};
+
+const handleUnauthorized = () => {
+  clearAuthState();
+  redirectToLogin();
+};
+
+const getToken = () => localStorage.getItem(STORAGE_KEYS.token);
+
+const buildRequestHeaders = ({ json = true, auth = true, headers = {} } = {}) => {
+  const finalHeaders = { ...headers };
+
+  if (json) {
+    finalHeaders['Content-Type'] = 'application/json';
+  }
+
+  if (auth) {
+    const token = getToken();
+    if (token) {
+      finalHeaders.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  return finalHeaders;
+};
+
+const buildUrl = (path) => `${API_BASE_URL}${path}`;
+
+const parseResponse = async (response) => {
+  const contentType = response.headers.get('content-type') || '';
+
+  let payload = null;
+  if (contentType.includes('application/json')) {
+    payload = await response.json();
+  } else {
+    payload = await response.text();
+  }
+
+  if (!response.ok) {
+    const message =
+      (payload &&
+        typeof payload === 'object' &&
+        (payload.message || payload.error || payload.reason)) ||
+      (typeof payload === 'string' && payload) ||
+      response.statusText ||
+      'Request failed';
+
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
+
+    throw new ApiError(message, response.status, payload);
+  }
+
+  return payload;
+};
+
+const request = async (path, options = {}) => {
+  const { json = true, auth = true, headers = {}, body, ...rest } = options;
+  const finalHeaders = buildRequestHeaders({ json, auth, headers });
+  const init = {
+    ...rest,
+    headers: finalHeaders,
   };
+
+  if (body !== undefined) {
+    init.body = body;
+  }
+
+  const response = await fetch(buildUrl(path), init);
+  return parseResponse(response);
+};
+
+const getPublicDetectionImageUrl = (storageBucket, storageKey) => {
+  if (!storageKey) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(storageKey)) {
+    return storageKey;
+  }
+
+  const bucket = storageBucket || import.meta.env.VITE_AWS_BUCKET_NAME;
+  if (!bucket) {
+    return storageKey;
+  }
+
+  return `https://${bucket}.s3.${AWS_REGION}.amazonaws.com/${encodeURI(storageKey)}`;
 };
 
 export const apiClient = {
-  /**
-   * Detect image - Upload file or URL
-   */
   detectImage: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = localStorage.getItem('token');
-    const headers = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/predict`, {
+    return request('/predict', {
       method: 'POST',
-      headers,
+      auth: true,
+      json: false,
       body: formData,
     });
-
-    if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-
-    if (!response.ok) {
-      throw new Error(`Detection failed: ${response.statusText}`);
-    }
-
-    return response.json();
   },
 
-  /**
-   * Get detection history
-   */
   getHistory: async (page = 1, limit = 10) => {
-    const response = await fetch(`${API_BASE_URL}/history?page=${page}&limit=${limit}`, {
-      headers: getHeaders(),
+    return request(`/history?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      auth: true,
     });
-
-    if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-
-    if (!response.ok) throw new Error('Failed to fetch history');
-    return response.json();
   },
 
-  /**
-   * Submit feedback
-   */
   submitFeedback: async (feedback) => {
-    const response = await fetch(`${API_BASE_URL}/feedback`, {
+    const payload = {
+      imageId: Number(feedback.imageId),
+      isCorrect: Boolean(feedback.isCorrect),
+      ...(feedback.message?.trim() ? { message: feedback.message.trim() } : {}),
+    };
+
+    return request('/feedback', {
       method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(feedback),
+      auth: true,
+      body: JSON.stringify(payload),
     });
-
-    if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-
-    if (!response.ok) throw new Error('Failed to submit feedback');
-    return response.json();
   },
 
-  /**
-   * Get user profile
-   */
   getUserProfile: async () => {
-    const response = await fetch(`${API_BASE_URL}/profile`, {
-      headers: getHeaders(),
+    return request('/auth/profile', {
+      method: 'GET',
+      auth: true,
     });
-
-    if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-
-    if (!response.ok) throw new Error('Failed to fetch profile');
-    return response.json();
   },
 
-  /**
-   * Login
-   */
-  login: async (email, password) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  register: async ({ email, password, confirmPassword, displayName }) => {
+    return request('/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      auth: false,
+      body: JSON.stringify({
+        email,
+        password,
+        confirmPassword,
+        displayName,
+      }),
+    });
+  },
+
+  login: async (email, password) => {
+    return request('/auth/login', {
+      method: 'POST',
+      auth: false,
       body: JSON.stringify({ email, password }),
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
-    }
-
-    return response.json();
   },
 
-  /**
-   * Logout
-   */
   logout: async () => {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      headers: getHeaders(),
-    });
-
-    if (!response.ok) throw new Error('Logout failed');
-    return response.json();
+    try {
+      return await request('/auth/logout', {
+        method: 'POST',
+        auth: true,
+      });
+    } finally {
+      clearAuthState();
+    }
   },
+
+  clearAuthState,
+  getPublicDetectionImageUrl,
 };
 
-/**
- * Handle API errors gracefully
- */
 export const handleApiError = (error) => {
   console.error('API Error:', error);
+  if (error instanceof ApiError) {
+    return {
+      success: false,
+      status: error.status,
+      message: error.message,
+      payload: error.payload,
+    };
+  }
+
   return {
     success: false,
-    message: error.message || 'An error occurred',
+    message: error?.message || 'An error occurred',
   };
 };

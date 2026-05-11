@@ -1,8 +1,10 @@
 package com.aicontentdetection.backend.controller;
 
+import com.aicontentdetection.backend.dto.UserProfileResponseDto;
 import com.aicontentdetection.backend.entity.AppUser;
 import com.aicontentdetection.backend.service.AuthService;
 import com.aicontentdetection.backend.service.impl.AuthServiceImpl;
+import com.aicontentdetection.backend.service.DetectionRecordService;
 import com.aicontentdetection.backend.util.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ public class UserController {
 
     private final AuthServiceImpl authService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final DetectionRecordService detectionRecordService;
 
     /**
      * Login endpoint
@@ -51,6 +54,40 @@ public class UserController {
             log.error("Login error: {}", ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Login failed"));
+        }
+    }
+
+    /**
+     * Register endpoint
+     * POST /api/auth/register
+     */
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        try {
+            if (request.email() == null || request.email().isEmpty() ||
+                request.password() == null || request.password().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Email and password are required"));
+            }
+
+            if (request.confirmPassword() != null && !request.confirmPassword().isEmpty()
+                && !request.password().equals(request.confirmPassword())) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Passwords do not match"));
+            }
+
+            AppUser user = authService.register(request.email(), request.password(), request.displayName());
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Email already exists or registration failed"));
+            }
+
+            AuthService.LoginResponse response = authService.generateLoginResponse(user);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception ex) {
+            log.error("Register error: {}", ex.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Registration failed"));
         }
     }
 
@@ -97,11 +134,23 @@ public class UserController {
             }
 
             AuthService.UserDto userDto = authService.toUserDto(user);
-            return ResponseEntity.ok(Map.of(
-                "id", userDto.id(),
-                "email", userDto.email(),
-                "createdAt", userDto.createdAt()
-            ));
+            DetectionRecordService.DetectionStats stats = detectionRecordService.getStats(user.getId());
+
+            UserProfileResponseDto response = UserProfileResponseDto.builder()
+                .id(userDto.id())
+                .email(userDto.email())
+                .displayName(user.getDisplayName())
+                .avatarBucket(userDto.avatarBucket())
+                .avatarKey(userDto.avatarKey())
+                .avatar(userDto.avatar())
+                .role(user.getRole())
+                .createdAt(userDto.createdAt())
+                .totalDetections(stats.totalDetections())
+                .aiDetections(stats.aiDetections())
+                .realDetections(stats.realDetections())
+                .build();
+
+            return ResponseEntity.ok(response);
         } catch (Exception ex) {
             log.error("Get profile error: {}", ex.getMessage(), ex);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -113,5 +162,11 @@ public class UserController {
      * Login request DTO
      */
     public record LoginRequest(String email, String password) {
+    }
+
+    /**
+     * Register request DTO
+     */
+    public record RegisterRequest(String email, String password, String confirmPassword, String displayName) {
     }
 }

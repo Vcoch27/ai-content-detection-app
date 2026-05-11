@@ -3,13 +3,20 @@ package com.aicontentdetection.backend.controller;
 import com.aicontentdetection.backend.dto.AiPredictResponseDto;
 import com.aicontentdetection.backend.exception.AiServiceException;
 import com.aicontentdetection.backend.exception.GlobalExceptionHandler;
+import com.aicontentdetection.backend.entity.AppUser;
 import com.aicontentdetection.backend.service.AiGatewayService;
+import com.aicontentdetection.backend.service.AuthService;
 import com.aicontentdetection.backend.service.DetectionRecordService;
+import com.aicontentdetection.backend.service.S3StorageService;
+import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
+import com.aicontentdetection.backend.util.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -29,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Tests endpoint behavior for valid uploads, validation errors, and upstream failures.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class AiPredictControllerTest {
 
     @Mock
@@ -37,11 +46,45 @@ public class AiPredictControllerTest {
         @Mock
         private DetectionRecordService detectionRecordService;
 
+        @Mock
+        private S3StorageService s3StorageService;
+
+        @Mock
+        private AuthService authService;
+
+        @Mock
+        private JwtTokenProvider jwtTokenProvider;
+
+        private AppUser currentUser;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-                AiPredictController aiPredictController = new AiPredictController(aiGatewayService, detectionRecordService);
+                currentUser = AppUser.builder()
+                                .id(1L)
+                                .email("demo@example.com")
+                                .displayName("Demo User")
+                                .role("USER")
+                                .build();
+
+                when(jwtTokenProvider.extractTokenFromHeader(anyString())).thenAnswer(invocation -> {
+                        String header = invocation.getArgument(0);
+                        if (header == null || !header.startsWith("Bearer ")) {
+                                return null;
+                        }
+                        return header.substring(7);
+                });
+                when(authService.getUserByToken(anyString())).thenReturn(currentUser);
+                when(s3StorageService.upload(any(MultipartFile.class), anyString()))
+                                .thenReturn(new StoredObject("ai-detect-images", "detections/1/2026-05-11/test.jpg", "etag"));
+
+                AiPredictController aiPredictController = new AiPredictController(
+                                aiGatewayService,
+                                detectionRecordService,
+                                s3StorageService,
+                                authService,
+                                jwtTokenProvider);
                 HealthController healthController = new HealthController();
                 mockMvc = MockMvcBuilders.standaloneSetup(aiPredictController, healthController)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -100,7 +143,8 @@ public class AiPredictControllerTest {
 
         // Act & Assert
         mockMvc.perform(multipart("/api/predict")
-                .file(file))
+                .file(file)
+                .header("Authorization", "Bearer token123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.prediction").value("REAL-IMAGE"));
     }
@@ -177,7 +221,8 @@ public class AiPredictControllerTest {
 
         // Act & Assert
         mockMvc.perform(multipart("/api/predict")
-                .file(file))
+                .file(file)
+                .header("Authorization", "Bearer token123"))
                 .andExpect(status().isGatewayTimeout())
                 .andExpect(jsonPath("$.status_code").value(504))
                 .andExpect(jsonPath("$.error_type").value("AI_SERVICE_ERROR"));
@@ -199,7 +244,8 @@ public class AiPredictControllerTest {
 
         // Act & Assert
         mockMvc.perform(multipart("/api/predict")
-                .file(file))
+                .file(file)
+                .header("Authorization", "Bearer token123"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.status_code").value(502));
     }

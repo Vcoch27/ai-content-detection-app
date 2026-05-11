@@ -18,4 +18,6 @@ public class DetectionHistoryItemDto {
     private Double confidence;
     private LocalDateTime timestamp;
     private String thumbnail;
+    private String storageBucket;
+    private String storageKey;
 }
