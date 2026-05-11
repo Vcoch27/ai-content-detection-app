@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * DTO for response from FastAPI AI service /predict endpoint.
  * Maps the JSON response from Python AI service.
@@ -53,6 +55,18 @@ public class AiPredictResponseDto {
     private Double realProbability;
 
     /**
+     * Base64 encoded string of the heatmap image (.png)
+     */
+    @JsonProperty("heatmap_base64")
+    private String heatmapBase64;
+
+    /**
+     * List of computer vision feature analysis results
+     */
+    @JsonProperty("cv_analysis")
+    private List<CvFeatureAnalysisDto> cvAnalysis;
+
+    /**
      * Check if prediction was successful
      */
     public boolean isSuccess() {
@@ -94,6 +108,8 @@ public class AiPredictResponseDto {
                 .message(upstream.getMessage())
                 .aiProbability(upstream.getAiProbability())
                 .realProbability(upstream.getRealProbability())
+                .heatmapBase64(upstream.getHeatmapBase64())
+                .cvAnalysis(upstream.getCvAnalysis())
                 .build();
     }
 
