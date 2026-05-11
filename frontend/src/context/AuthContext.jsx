@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { apiClient } from '../utils/api';
 
 /**
  * AuthContext - Manages user authentication state
@@ -15,21 +16,40 @@ export function AuthProvider({ children }) {
    * Initialize auth state from localStorage on mount
    */
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    const restoreAuthState = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
 
-    if (storedToken && storedUser) {
-      try {
+      if (storedToken) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Failed to restore auth state:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
       }
-    }
 
-    setIsLoading(false);
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (error) {
+          console.error('Failed to parse stored user:', error);
+          apiClient.clearAuthState();
+        }
+      }
+
+      if (storedToken) {
+        try {
+          const profile = await apiClient.getUserProfile();
+          setUser(profile);
+          localStorage.setItem('user', JSON.stringify(profile));
+        } catch (error) {
+          console.error('Failed to refresh profile during init:', error);
+          setToken(null);
+          setUser(null);
+          apiClient.clearAuthState();
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    restoreAuthState();
   }, []);
 
   /**
@@ -39,33 +59,27 @@ export function AuthProvider({ children }) {
    * @returns {Promise<boolean>} - True if login successful
    */
   const login = async (email, password) => {
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+    const response = await apiClient.login(email, password);
+    localStorage.setItem('token', response.token);
+    localStorage.setItem('user', JSON.stringify(response.user));
+    setToken(response.token);
+    setUser(response.user);
+    return response;
+  };
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Login failed');
-      }
+  const register = async ({ email, password, confirmPassword, displayName }) => {
+    const response = await apiClient.register({
+      email,
+      password,
+      confirmPassword,
+      displayName,
+    });
 
-      const data = await response.json();
-      const { token: newToken, user: userData } = data;
-
-      // Store in localStorage and state
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      setToken(newToken);
-      setUser(userData);
-
-      return true;
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
-    }
+    localStorage.setItem('token', response.token);
+    localStorage.setItem('user', JSON.stringify(response.user));
+    setToken(response.token);
+    setUser(response.user);
+    return response;
   };
 
   /**
@@ -73,21 +87,13 @@ export function AuthProvider({ children }) {
    */
   const logout = async () => {
     try {
-      // Call logout endpoint (optional for MVP)
       if (token) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        await apiClient.logout();
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear state and localStorage
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      apiClient.clearAuthState();
       setToken(null);
       setUser(null);
     }
@@ -100,17 +106,13 @@ export function AuthProvider({ children }) {
     if (!token) return;
 
     try {
-      const response = await fetch('/api/profile', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-      }
+      const profile = await apiClient.getUserProfile();
+      setUser(profile);
+      localStorage.setItem('user', JSON.stringify(profile));
+      return profile;
     } catch (error) {
       console.error('Failed to refresh profile:', error);
+      throw error;
     }
   };
 
@@ -120,6 +122,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!token,
     isLoading,
     login,
+    register,
     logout,
     refreshProfile,
   };

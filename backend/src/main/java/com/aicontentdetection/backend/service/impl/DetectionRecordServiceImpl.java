@@ -6,6 +6,7 @@ import com.aicontentdetection.backend.dto.DetectionHistoryResponseDto;
 import com.aicontentdetection.backend.entity.DetectionRecord;
 import com.aicontentdetection.backend.repository.DetectionRecordRepository;
 import com.aicontentdetection.backend.service.DetectionRecordService;
+import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,13 +23,16 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
     private final DetectionRecordRepository detectionRecordRepository;
 
     @Override
-    public DetectionRecord savePrediction(MultipartFile file, AiPredictResponseDto prediction) {
+    public DetectionRecord savePrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject storedObject) {
         DetectionRecord record = DetectionRecord.builder()
+                .userId(userId)
                 .originalFilename(file.getOriginalFilename())
                 .contentType(file.getContentType())
                 .fileSize(file.getSize())
+                .storageBucket(storedObject != null ? storedObject.bucket() : null)
+                .storageKey(storedObject != null ? storedObject.key() : null)
                 .prediction(prediction.getPrediction())
-                .confidence(prediction.getConfidenceAsDouble() >= 0 ? prediction.getConfidenceAsDouble() : null)
+                .confidence(prediction.getConfidenceAsDouble() >= 0 ? prediction.getConfidenceAsDouble() : 0.0)
                 .aiProbability(prediction.getAiProbability())
                 .realProbability(prediction.getRealProbability())
                 .aiServiceMessage(prediction.getMessage())
@@ -39,12 +43,12 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
     }
 
     @Override
-    public DetectionHistoryResponseDto getHistory(int page, int limit) {
+    public DetectionHistoryResponseDto getHistory(Long userId, int page, int limit) {
         int normalizedPage = Math.max(page, 1);
         int normalizedLimit = Math.max(limit, 1);
         Pageable pageable = PageRequest.of(normalizedPage - 1, normalizedLimit, Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        var pageResult = detectionRecordRepository.findAllByOrderByCreatedAtDesc(pageable);
+        var pageResult = detectionRecordRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
         List<DetectionHistoryItemDto> items = pageResult.getContent().stream()
                 .map(record -> DetectionHistoryItemDto.builder()
                         .id(record.getId())
@@ -52,7 +56,9 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                         .prediction(record.getPrediction())
                         .confidence(record.getConfidence() != null ? record.getConfidence() : 0.0)
                         .timestamp(record.getCreatedAt())
-                        .thumbnail(null)
+                        .storageBucket(record.getStorageBucket())
+                        .storageKey(record.getStorageKey())
+                        .thumbnail(record.getStorageKey())
                         .build())
                 .toList();
 
@@ -63,4 +69,13 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                 .limit(normalizedLimit)
                 .build();
     }
+
+        @Override
+        public DetectionStats getStats(Long userId) {
+                long totalDetections = detectionRecordRepository.countByUserId(userId);
+                long aiDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "AI-GENERATED");
+                long realDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "REAL-IMAGE");
+
+                return new DetectionStats(totalDetections, aiDetections, realDetections);
+        }
 }

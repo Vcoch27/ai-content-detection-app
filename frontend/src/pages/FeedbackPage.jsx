@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Send, CheckCircle2 } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
@@ -17,23 +17,38 @@ export const FeedbackPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    const pendingImageId = localStorage.getItem('pendingFeedbackImageId');
+    if (pendingImageId) {
+      setImageId(pendingImageId);
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    const parsedImageId = Number(imageId);
+    if (!Number.isInteger(parsedImageId) || parsedImageId <= 0) {
+      setError('Detection ID must be a valid number');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const feedback = {
-        imageId,
+        imageId: parsedImageId,
         isCorrect,
         message,
       };
-      
+
       await apiClient.submitFeedback(feedback);
       setSubmitted(true);
       setImageId('');
       setMessage('');
       setIsCorrect(true);
+      localStorage.removeItem('pendingFeedbackImageId');
 
       setTimeout(() => setSubmitted(false), 3000);
     } catch (err) {
@@ -73,11 +88,15 @@ export const FeedbackPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Image ID */}
             <Input
-              label="Detection ID (optional)"
-              placeholder="Enter the image ID or filename"
+              label="Detection ID"
+              placeholder="Enter the numeric detection ID"
               value={imageId}
               onChange={(e) => setImageId(e.target.value)}
+              required
             />
+            <p className="text-xs text-gray-500 -mt-3">
+              You can open this form from History to prefill the detection ID.
+            </p>
 
             {/* Correct/Incorrect Toggle */}
             <div>

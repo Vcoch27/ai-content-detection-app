@@ -7,4 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DetectionRecordRepository extends JpaRepository<DetectionRecord, Long> {
     Page<DetectionRecord> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    Page<DetectionRecord> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    long countByUserId(Long userId);
+
+    long countByUserIdAndPredictionIgnoreCase(Long userId, String prediction);
 }

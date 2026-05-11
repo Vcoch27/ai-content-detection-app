@@ -1,6 +1,7 @@
 package com.aicontentdetection.backend.service.impl;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Disabled("Live S3 integration test requires AWS credentials and a reachable database")
 class AwsS3StorageServiceTest {
 
     @Autowired(required = false)

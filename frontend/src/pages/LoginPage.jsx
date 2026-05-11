@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { apiClient } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import { ROUTES } from '../constants/theme';
 
 /**
  * LoginPage - Authentication page
@@ -14,6 +16,8 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -27,15 +31,8 @@ export const LoginPage = () => {
     }
 
     try {
-      // Call real API login endpoint
-      const response = await apiClient.login(email, password);
-      
-      // Store token and user in localStorage
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-
-      // Redirect to detect page
-      window.location.href = '/detect';
+      await login(email, password);
+      navigate(ROUTES.DETECT, { replace: true });
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
@@ -140,9 +137,9 @@ export const LoginPage = () => {
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
             Don't have an account?{' '}
-            <a href="#" className="text-blue-600 hover:underline font-semibold">
+            <Link to={ROUTES.REGISTER} className="text-blue-600 hover:underline font-semibold">
               Sign up
-            </a>
+            </Link>
           </p>
         </div>
       </div>

@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Badge } from '../components/ui/Badge';
 import { apiClient, handleApiError } from '../utils/api';
 
 /**
@@ -18,6 +17,9 @@ export const DetectPage = () => {
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' or 'url'
   const [error, setError] = useState(null);
+  const canDetectFromUrl = false;
+
+  const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
 
   // Handle file upload
   const handleFileChange = (e) => {
@@ -78,7 +80,6 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      // Call real API detect endpoint
       const response = await apiClient.detectImage(selectedFile);
       setResult(response);
     } catch (err) {
@@ -91,29 +92,7 @@ export const DetectPage = () => {
 
   // Handle detect from URL
   const handleDetectFromUrl = async () => {
-    if (!imageUrl.trim()) {
-      setError('Please enter an image URL');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // For URL detection, we need to fetch the image first and convert to file
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const file = new File([blob], 'image-from-url.jpg', { type: blob.type });
-      
-      const result = await apiClient.detectImage(file);
-      setPreview(imageUrl);
-      setResult(result);
-    } catch (err) {
-      const errorResponse = handleApiError(err);
-      setError(errorResponse.message);
-    } finally {
-      setIsLoading(false);
-    }
+    setError('Detect from URL is coming soon. Please upload an image file for now.');
   };
 
   const clearResult = () => {
@@ -189,6 +168,9 @@ export const DetectPage = () => {
                       <div className="mt-2">
                         <Button onClick={triggerFileInput}>Choose File</Button>
                       </div>
+                      {selectedFileLabel && (
+                        <p className="text-xs text-gray-500">Selected: {selectedFileLabel}</p>
+                      )}
                     </div>
                   </Card>
                 ) : (
@@ -232,7 +214,6 @@ export const DetectPage = () => {
                     <div className="flex gap-3">
                       <Button
                         onClick={() => {
-                          // set preview for quick preview without detecting
                           setPreview(imageUrl);
                         }}
                         disabled={!imageUrl.trim()}
@@ -242,13 +223,17 @@ export const DetectPage = () => {
                       <Button
                         onClick={handleDetectFromUrl}
                         loading={isLoading}
-                        disabled={isLoading || !imageUrl.trim()}
+                        disabled={true}
                         className="flex-1"
                       >
-                        <Zap size={20} />
-                        Detect from URL
+                        <Sparkles size={20} />
+                        Coming soon
                       </Button>
                     </div>
+                    <p className="text-xs text-gray-500">
+                      URL-based detection is not wired to the backend yet. Upload an image file to
+                      use the current contract.
+                    </p>
                   </div>
                 </Card>
 
@@ -266,11 +251,11 @@ export const DetectPage = () => {
                       <Button
                         onClick={handleDetectFromUrl}
                         loading={isLoading}
-                        disabled={isLoading}
+                        disabled={true}
                         className="flex-1"
                       >
-                        <Zap size={20} />
-                        Detect Now
+                        <Sparkles size={20} />
+                        Coming soon
                       </Button>
                     </div>
                   </Card>
@@ -289,7 +274,8 @@ export const DetectPage = () => {
             {/* Result */}
             {result && (
               <div className="mt-8">
-                <ResultDisplay result={result} onClear={clearResult} />
+                {' '}
+                <ResultDisplay result={result} onClear={clearResult} />{' '}
               </div>
             )}
           </div>
@@ -368,6 +354,7 @@ const ResultDisplay = ({ result, onClear }) => {
           <p className={`${isAI ? 'text-red-700' : 'text-green-700'}`}>
             Confidence: {confidence.toFixed(2)}%
           </p>
+          {result.message && <p className="mt-2 text-sm text-gray-600">{result.message}</p>}
         </div>
       </div>
 

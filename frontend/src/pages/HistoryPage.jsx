@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Filter } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Filter, MessageSquarePlus, ImageOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { apiClient } from '../utils/api';
+import { ROUTES } from '../constants/theme';
 
 /**
  * HistoryPage - View detection history
@@ -14,6 +16,7 @@ export const HistoryPage = () => {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   // Fetch history on mount
   useEffect(() => {
@@ -32,14 +35,18 @@ export const HistoryPage = () => {
     fetchHistory();
   }, []);
 
-  const filteredHistory = history.filter((item) => {
-    if (filter === 'ai') return item.prediction === 'AI-GENERATED';
-    if (filter === 'real') return item.prediction === 'REAL';
-    return true;
-  });
+  const filteredHistory = useMemo(() => {
+    return history.filter((item) => {
+      const prediction = (item.prediction || '').toUpperCase();
+      if (filter === 'ai') return prediction.includes('AI');
+      if (filter === 'real') return prediction.includes('REAL');
+      return true;
+    });
+  }, [history, filter]);
 
-  const handleDelete = (id) => {
-    setHistory(history.filter((item) => item.id !== id));
+  const prepareFeedback = (id) => {
+    localStorage.setItem('pendingFeedbackImageId', String(id));
+    navigate(ROUTES.FEEDBACK);
   };
 
   const formatDate = (timestamp) => {
@@ -50,6 +57,14 @@ export const HistoryPage = () => {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getImageUrl = (item) => {
+    if (item.imageUrl) {
+      return item.imageUrl;
+    }
+
+    return apiClient.getPublicDetectionImageUrl(item.storageBucket, item.storageKey);
   };
 
   return (
@@ -97,7 +112,8 @@ export const HistoryPage = () => {
                     : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                AI-Generated ({history.filter((i) => i.prediction === 'AI-GENERATED').length})
+                AI-Generated (
+                {history.filter((i) => (i.prediction || '').toUpperCase().includes('AI')).length})
               </button>
               <button
                 onClick={() => setFilter('real')}
@@ -107,7 +123,8 @@ export const HistoryPage = () => {
                     : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                Real ({history.filter((i) => i.prediction === 'REAL').length})
+                Real (
+                {history.filter((i) => (i.prediction || '').toUpperCase().includes('REAL')).length})
               </button>
             </div>
 
@@ -121,33 +138,59 @@ export const HistoryPage = () => {
                 {filteredHistory.map((item) => (
                   <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     {/* Thumbnail */}
-                    <img
-                      src={item.thumbnail}
-                      alt={item.filename}
-                      className="w-full h-48 object-cover"
-                    />
+                    {getImageUrl(item) ? (
+                      <img
+                        src={getImageUrl(item)}
+                        alt={item.filename}
+                        className="w-full h-48 object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
+                        <div className="text-center">
+                          <ImageOff size={28} className="mx-auto mb-2" />
+                          <p className="text-sm">No preview available</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Content */}
                     <div className="p-4">
-                      <p className="text-sm text-gray-600 truncate mb-3">{item.filename}</p>
+                      <p className="text-sm text-gray-600 truncate mb-2">{item.filename}</p>
+                      <p className="text-[11px] text-gray-400 truncate mb-3">
+                        {item.storageBucket ? `${item.storageBucket} / ` : ''}
+                        {item.storageKey || 'No storage key'}
+                      </p>
 
                       <div className="flex items-center justify-between mb-3">
-                        <Badge variant={item.prediction === 'AI-GENERATED' ? 'error' : 'success'}>
+                        <Badge
+                          variant={
+                            (item.prediction || '').toUpperCase().includes('AI')
+                              ? 'error'
+                              : 'success'
+                          }
+                        >
                           {item.prediction}
                         </Badge>
-                        <span className="text-sm font-semibold text-gray-900">{item.confidence}%</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {typeof item.confidence === 'number'
+                            ? item.confidence.toFixed(2)
+                            : Number(item.confidence || 0).toFixed(2)}
+                          %
+                        </span>
                       </div>
 
                       <p className="text-xs text-gray-500 mb-4">{formatDate(item.timestamp)}</p>
 
-                      <Button
-                        onClick={() => handleDelete(item.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="w-full text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 size={16} /> Delete
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => prepareFeedback(item.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                        >
+                          <MessageSquarePlus size={16} /> Send feedback
+                        </Button>
+                      </div>
                     </div>
                   </Card>
                 ))}

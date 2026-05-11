@@ -1,33 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Mail, Edit2, LogOut } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Mail, LogOut, ShieldCheck, CalendarDays, BarChart3 } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
-import { apiClient } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * ProfilePage - User profile and settings
  */
 export const ProfilePage = () => {
-  const [user, setUser] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedUser, setEditedUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { user, refreshProfile, logout } = useAuth();
 
-  // Load user profile on mount
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
-          setEditedUser(userData);
-        } else {
-          setError('User not found');
-        }
+        await refreshProfile();
       } catch (err) {
         setError(err.message || 'Failed to load profile');
       } finally {
@@ -38,28 +28,14 @@ export const ProfilePage = () => {
     loadProfile();
   }, []);
 
-  const handleSave = () => {
-    setUser(editedUser);
-    localStorage.setItem('user', JSON.stringify(editedUser));
-    setIsEditing(false);
-  };
-
   const handleLogout = async () => {
-    try {
-      await apiClient.logout();
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    } catch (err) {
-      console.error('Logout error:', err);
-      // Still clear storage and redirect even if API call fails
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
+    await logout();
+    window.location.href = '/login';
   };
 
   const formatDate = (date) => {
+    if (!date) return 'Unknown';
+
     return new Date(date).toLocaleDateString('vi-VN', {
       year: 'numeric',
       month: 'long',
@@ -100,110 +76,72 @@ export const ProfilePage = () => {
           <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center mb-8">
             <Avatar src={user.avatar} size="lg" />
             <div className="flex-1">
-              <h2 className="text-3xl font-bold text-gray-900">{user.username}</h2>
+              <h2 className="text-3xl font-bold text-gray-900">{user.displayName || user.email}</h2>
               <div className="flex items-center gap-2 text-gray-600 mt-2">
                 <Mail size={18} />
                 <span>{user.email}</span>
               </div>
-              <p className="text-sm text-gray-500 mt-3">
-                Member since {formatDate(user.joinedDate)}
-              </p>
+              <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-500">
+                <span className="inline-flex items-center gap-2">
+                  <ShieldCheck size={16} /> {user.role || 'USER'}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <CalendarDays size={16} /> Member since {formatDate(user.createdAt)}
+                </span>
+              </div>
             </div>
-            <Button
-              onClick={() => setIsEditing(!isEditing)}
-              variant={isEditing ? 'secondary' : 'primary'}
-            >
-              <Edit2 size={18} />
-              {isEditing ? 'Cancel' : 'Edit Profile'}
-            </Button>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-200">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-gray-200">
             <div className="text-center">
               <p className="text-3xl font-bold text-blue-600">{user.totalDetections}</p>
               <p className="text-sm text-gray-600 mt-1">Total Detections</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">
-                {Math.floor(user.totalDetections * 0.7)}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">Accurate Results</p>
+              <p className="text-3xl font-bold text-red-600">{user.aiDetections}</p>
+              <p className="text-sm text-gray-600 mt-1">AI-Generated</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-green-600">{user.realDetections}</p>
+              <p className="text-sm text-gray-600 mt-1">Real Images</p>
             </div>
           </div>
         </Card>
 
-        {/* Edit Form */}
-        {isEditing && (
-          <Card className="p-8 mb-8 border-blue-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Profile</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">Username</label>
-                <input
-                  type="text"
-                  value={editedUser.username}
-                  onChange={(e) => setEditedUser({ ...editedUser, username: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">Email</label>
-                <input
-                  type="email"
-                  value={editedUser.email}
-                  onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-blue-500"
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={handleSave} className="flex-1">
-                  Save Changes
-                </Button>
-                <Button
-                  onClick={() => {
-                    setEditedUser(user);
-                    setIsEditing(false);
-                  }}
-                  variant="secondary"
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
-
         {/* Settings */}
         <Card className="p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Settings</h3>
+          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <BarChart3 size={20} /> Detection Summary
+          </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <p className="font-semibold text-gray-900">Notifications</p>
-                <p className="text-sm text-gray-600">Get alerts for new features</p>
+                <p className="font-semibold text-gray-900">Total detections</p>
+                <p className="text-sm text-gray-600">All scans made by this account</p>
               </div>
-              <input type="checkbox" defaultChecked className="w-5 h-5" />
+              <span className="font-bold text-blue-600">{user.totalDetections}</span>
             </div>
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <p className="font-semibold text-gray-900">Dark Mode</p>
-                <p className="text-sm text-gray-600">Coming soon</p>
+                <p className="font-semibold text-gray-900">AI-generated results</p>
+                <p className="text-sm text-gray-600">Predictions classified as AI</p>
               </div>
-              <input type="checkbox" disabled className="w-5 h-5" />
+              <span className="font-bold text-red-600">{user.aiDetections}</span>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <p className="font-semibold text-gray-900">Real-image results</p>
+                <p className="text-sm text-gray-600">Predictions classified as real</p>
+              </div>
+              <span className="font-bold text-green-600">{user.realDetections}</span>
             </div>
           </div>
         </Card>
 
         {/* Logout */}
         <div className="mt-8">
-          <Button 
-            onClick={handleLogout}
-            variant="danger" 
-            className="w-full" 
-            size="lg"
-          >
+          <Button onClick={handleLogout} variant="danger" className="w-full" size="lg">
             <LogOut size={20} /> Logout
           </Button>
         </div>

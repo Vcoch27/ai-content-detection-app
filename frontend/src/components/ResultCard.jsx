@@ -64,6 +64,7 @@ const ResultCard = ({ result, fileType }) => {
           <p className="text-gray-600 mt-1">
             Phân tích dựa trên {isVideo ? 'các khung hình video' : 'hình ảnh'} đã tải lên.
           </p>
+          {result.message && <p className="text-sm text-gray-500 mt-2">{result.message}</p>}
         </div>
       </div>
 

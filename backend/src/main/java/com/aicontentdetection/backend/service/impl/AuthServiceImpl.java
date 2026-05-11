@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /**
  * Service implementation for authentication operations
@@ -17,6 +18,10 @@ import java.time.format.DateTimeFormatter;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthServiceImpl implements AuthService {
+
+    private static final String DEFAULT_AVATAR_BUCKET = "ai-detect-images";
+    private static final String DEFAULT_AVATAR_KEY = "defaultAvt.jpg";
+    private static final String DEFAULT_AVATAR_URL = "https://ai-detect-images.s3.us-east-1.amazonaws.com/defaultAvt.jpg";
 
     private final AppUserRepository appUserRepository;
     private final JwtTokenProvider jwtTokenProvider;
@@ -43,6 +48,41 @@ public class AuthServiceImpl implements AuthService {
             return user;
         } catch (Exception ex) {
             log.error("Authentication error: {}", ex.getMessage(), ex);
+            return null;
+        }
+    }
+
+    @Override
+    public AppUser register(String email, String password, String displayName) {
+        try {
+            String normalizedEmail = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+            if (normalizedEmail == null || normalizedEmail.isEmpty() || password == null || password.isEmpty()) {
+                return null;
+            }
+
+            if (appUserRepository.findByEmail(normalizedEmail).isPresent()) {
+                log.warn("Registration failed: Email already exists: {}", normalizedEmail);
+                return null;
+            }
+
+            String resolvedDisplayName = displayName;
+            if (resolvedDisplayName == null || resolvedDisplayName.isBlank()) {
+                int atIndex = normalizedEmail.indexOf('@');
+                resolvedDisplayName = atIndex > 0 ? normalizedEmail.substring(0, atIndex) : normalizedEmail;
+            }
+
+            AppUser user = AppUser.builder()
+                    .email(normalizedEmail)
+                    .displayName(resolvedDisplayName)
+                    .passwordHash(password)
+                    .avatarBucket(DEFAULT_AVATAR_BUCKET)
+                    .avatarKey(DEFAULT_AVATAR_KEY)
+                    .role("USER")
+                    .build();
+
+            return appUserRepository.save(user);
+        } catch (Exception ex) {
+            log.error("Registration error: {}", ex.getMessage(), ex);
             return null;
         }
     }
@@ -78,11 +118,35 @@ public class AuthServiceImpl implements AuthService {
             ? user.getCreatedAt().format(formatter)
             : null;
 
+        String avatarBucket = user.getAvatarBucket();
+        String avatarKey = user.getAvatarKey();
+        String avatar = buildAvatarUrl(avatarBucket, avatarKey);
+
         return new AuthService.UserDto(
             user.getId(),
             user.getEmail(),
-            createdAt
+            createdAt,
+            avatarBucket,
+            avatarKey,
+            avatar
         );
+    }
+
+    private String buildAvatarUrl(String avatarBucket, String avatarKey) {
+        if (avatarKey == null || avatarKey.isBlank()) {
+            return DEFAULT_AVATAR_URL;
+        }
+
+        String normalizedKey = avatarKey.trim();
+        if (normalizedKey.startsWith("http://") || normalizedKey.startsWith("https://")) {
+            return normalizedKey;
+        }
+
+        String bucket = (avatarBucket == null || avatarBucket.isBlank())
+            ? DEFAULT_AVATAR_BUCKET
+            : avatarBucket.trim();
+
+        return String.format("https://%s.s3.us-east-1.amazonaws.com/%s", bucket, normalizedKey);
     }
 
     /**

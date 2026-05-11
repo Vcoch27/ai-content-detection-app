@@ -1,8 +1,13 @@
 package com.aicontentdetection.backend.controller;
 
 import com.aicontentdetection.backend.dto.AiPredictResponseDto;
+import com.aicontentdetection.backend.entity.AppUser;
+import com.aicontentdetection.backend.service.AuthService;
 import com.aicontentdetection.backend.service.DetectionRecordService;
 import com.aicontentdetection.backend.service.AiGatewayService;
+import com.aicontentdetection.backend.service.S3StorageService;
+import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
+import com.aicontentdetection.backend.util.JwtTokenProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -10,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Controller for AI prediction API endpoint.
@@ -22,6 +28,9 @@ public class AiPredictController {
 
     private final AiGatewayService aiGatewayService;
     private final DetectionRecordService detectionRecordService;
+    private final S3StorageService s3StorageService;
+    private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     private static final String[] ALLOWED_CONTENT_TYPES = {
@@ -31,9 +40,16 @@ public class AiPredictController {
             "image/x-windows-bmp"
     };
 
-    public AiPredictController(AiGatewayService aiGatewayService, DetectionRecordService detectionRecordService) {
+    public AiPredictController(AiGatewayService aiGatewayService,
+                               DetectionRecordService detectionRecordService,
+                               S3StorageService s3StorageService,
+                               AuthService authService,
+                               JwtTokenProvider jwtTokenProvider) {
         this.aiGatewayService = aiGatewayService;
         this.detectionRecordService = detectionRecordService;
+        this.s3StorageService = s3StorageService;
+        this.authService = authService;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     /**
@@ -73,10 +89,14 @@ public class AiPredictController {
             );
         }
 
+        AppUser currentUser = resolveAuthenticatedUser(authHeader);
+
+        StoredObject storedObject = s3StorageService.upload(file, "detections/" + currentUser.getId());
+
         // Call AI Gateway Service to get prediction
         AiPredictResponseDto prediction = aiGatewayService.predictImage(file);
 
-        detectionRecordService.savePrediction(file, prediction);
+        detectionRecordService.savePrediction(currentUser.getId(), file, prediction, storedObject);
 
         log.info("Prediction completed for file: {}. Result: {}",
                 file.getOriginalFilename(), prediction.getPrediction());
@@ -97,5 +117,19 @@ public class AiPredictController {
             }
         }
         return false;
+    }
+
+    private AppUser resolveAuthenticatedUser(String authHeader) {
+        String token = jwtTokenProvider.extractTokenFromHeader(authHeader);
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization header is required");
+        }
+
+        AppUser currentUser = authService.getUserByToken(token);
+        if (currentUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
+        }
+
+        return currentUser;
     }
 }

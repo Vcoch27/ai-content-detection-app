@@ -1,12 +1,18 @@
 package com.aicontentdetection.backend.controller;
 
 import com.aicontentdetection.backend.dto.DetectionHistoryResponseDto;
+import com.aicontentdetection.backend.entity.AppUser;
+import com.aicontentdetection.backend.service.AuthService;
 import com.aicontentdetection.backend.service.DetectionRecordService;
+import com.aicontentdetection.backend.util.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api")
@@ -14,11 +20,29 @@ import org.springframework.web.bind.annotation.RestController;
 public class HistoryController {
 
     private final DetectionRecordService detectionRecordService;
+    private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @GetMapping("/history")
     public DetectionHistoryResponseDto getHistory(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int limit) {
-        return detectionRecordService.getHistory(page, limit);
+        AppUser currentUser = resolveAuthenticatedUser(authHeader);
+        return detectionRecordService.getHistory(currentUser.getId(), page, limit);
+    }
+
+    private AppUser resolveAuthenticatedUser(String authHeader) {
+        String token = jwtTokenProvider.extractTokenFromHeader(authHeader);
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authorization header is required");
+        }
+
+        AppUser currentUser = authService.getUserByToken(token);
+        if (currentUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
+        }
+
+        return currentUser;
     }
 }
