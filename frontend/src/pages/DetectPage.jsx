@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles, Eye, Sliders, Info, Cpu, BarChart3 } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -17,6 +17,7 @@ export const DetectPage = () => {
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' or 'url'
   const [error, setError] = useState(null);
+  const [heatmapOpacity, setHeatmapOpacity] = useState(0.7);
   const canDetectFromUrl = false;
 
   const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
@@ -174,12 +175,81 @@ export const DetectPage = () => {
                     </div>
                   </Card>
                 ) : (
-                  <Card className="overflow-hidden">
-                    <img
-                      src={preview}
-                      alt="Preview"
-                      className="w-full max-h-[60vh] object-contain"
-                    />
+                  <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-gray-200">
+                    <div className="relative group">
+                      <div className="relative bg-gray-100 flex justify-center items-center py-4">
+                        <div className="relative inline-block overflow-hidden rounded-lg shadow-2xl">
+                          <img
+                            src={preview}
+                            alt="Preview"
+                            className="block max-w-full max-h-[70vh] w-auto h-auto"
+                          />
+                          {result?.heatmap_base64 && (
+                            <img
+                              src={result.heatmap_base64}
+                              alt="Heatmap Overlay"
+                              className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-300"
+                              style={{
+                                opacity: heatmapOpacity,
+                                mixBlendMode: 'multiply',
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grad-CAM Overlay Controls - Only show if heatmap exists */}
+                      {result?.heatmap_base64 && (
+                        <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
+                              <Eye size={24} className="text-blue-400" />
+                            </div>
+                            <div>
+                              <h4 className="text-base font-bold tracking-tight text-blue-50">Phân tích trực quan Grad-CAM</h4>
+                              <p className="text-xs text-gray-400 font-medium">
+                                Di chuyển thanh trượt để soi vùng tác động nhiều nhất đến kết quả
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
+                            <div className="flex items-center gap-4 min-w-[180px]">
+                              <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
+                                OPACITY: {Math.round(heatmapOpacity * 100)}%
+                              </span>
+                              <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={heatmapOpacity}
+                                onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
+                                className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Grad-CAM Legend - Only show if heatmap exists */}
+                      {result?.heatmap_base64 && (
+                        <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
+                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
+                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Đỏ</div>
+                            <div className="text-[9px] text-gray-500 font-medium">Độ tác động cao</div>
+                          </div>
+                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
+                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Vàng</div>
+                            <div className="text-[9px] text-gray-500 font-medium">Tác động trung bình</div>
+                          </div>
+                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
+                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Xanh</div>
+                            <div className="text-[9px] text-gray-500 font-medium">Ít tác động</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <div className="p-6 flex gap-3">
                       <Button onClick={clearResult} variant="secondary" className="flex-1">
                         Change Image
@@ -271,11 +341,85 @@ export const DetectPage = () => {
               </div>
             )}
 
-            {/* Result */}
+            {/* Result and Analysis */}
             {result && (
-              <div className="mt-8">
-                {' '}
-                <ResultDisplay result={result} onClear={clearResult} />{' '}
+              <div className="mt-8 space-y-8">
+                <ResultDisplay result={result} onClear={clearResult} />
+
+                {/* CV Feature Analysis Section */}
+                {result.cv_analysis && result.cv_analysis.length > 0 && (
+                  <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100">
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                          <BarChart3 size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                            Phân tích 5 đặc trưng CV
+                          </h3>
+                          <p className="text-sm text-gray-500 font-medium">Chi tiết thuật toán Computer Vision bổ trợ</p>
+                        </div>
+                      </div>
+                      <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-100">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">Live Analysis</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {result.cv_analysis.map((feat, idx) => {
+                        const score = feat.impact_score || 0;
+                        return (
+                          <div
+                            key={idx}
+                            className="relative group transition-all duration-500"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-[2rem] opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500 -z-10" />
+                            <div className="h-full bg-gray-50/50 hover:bg-white p-8 rounded-[2rem] border border-gray-100 group-hover:border-blue-200 transition-all duration-500 flex flex-col gap-6 shadow-sm group-hover:shadow-2xl">
+                              <div className="flex justify-between items-center">
+                                <span className="px-4 py-1.5 bg-white text-[12px] font-black text-blue-600 rounded-xl shadow-sm uppercase tracking-widest border border-blue-50">
+                                  {feat.category}
+                                </span>
+                                <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl">
+                                  <Cpu size={24} />
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col gap-3">
+                                <h4 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors tracking-tight">
+                                  {feat.feature_name}
+                                </h4>
+                                <div className="flex items-center gap-4 mt-1">
+                                  <div className="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                      style={{ width: `${score}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-lg font-black text-blue-600">
+                                    {Math.round(score)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              <p className="text-sm text-gray-600 group-hover:text-gray-700 leading-relaxed font-medium">
+                                {feat.description}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-50 flex items-center gap-2 text-gray-400">
+                      <Info size={14} />
+                      <p className="text-[10px] font-medium italic">
+                        Các đặc trưng này được trích xuất bằng thư viện OpenCV và Skimage (FFT, GLCM, v.v.) để bổ trợ cho mô hình CNN.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
