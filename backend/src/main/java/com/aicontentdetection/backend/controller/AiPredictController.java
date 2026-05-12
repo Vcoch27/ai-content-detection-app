@@ -32,12 +32,20 @@ public class AiPredictController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
 
-    private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-    private static final String[] ALLOWED_CONTENT_TYPES = {
+    private static final long MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    private static final String[] ALLOWED_IMAGE_TYPES = {
             MediaType.IMAGE_JPEG_VALUE,
             MediaType.IMAGE_PNG_VALUE,
             "image/bmp",
             "image/x-windows-bmp"
+    };
+    private static final String[] ALLOWED_VIDEO_TYPES = {
+            "video/mp4",
+            "video/mpeg",
+            "video/quicktime",
+            "video/x-msvideo",
+            "video/x-matroska",
+            "video/webm"
     };
 
     public AiPredictController(AiGatewayService aiGatewayService,
@@ -82,7 +90,7 @@ public class AiPredictController {
 
         // Validate file content type
         String contentType = file.getContentType();
-        if (!isAllowedContentType(contentType)) {
+        if (!isAllowedImageType(contentType)) {
             log.warn("Invalid file type: {}. Allowed types: JPEG, PNG, BMP", contentType);
             throw new IllegalArgumentException(
                     "Invalid file type: " + contentType + ". Allowed types: JPEG, PNG, BMP"
@@ -105,13 +113,63 @@ public class AiPredictController {
     }
 
     /**
-     * Check if content type is allowed for prediction.
+     * Analyze a video and get AI prediction.
+     * Only returns the prediction without saving to database as requested.
      */
-    private boolean isAllowedContentType(String contentType) {
+    @PostMapping("/predict-video")
+    public ResponseEntity<AiPredictResponseDto> predictVideo(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+        log.info("Received video prediction request for file: {} (size: {} bytes)",
+                file.getOriginalFilename(), file.getSize());
+
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be empty");
+        }
+
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException("File size exceeds 100MB");
+        }
+
+        String contentType = file.getContentType();
+        if (!isAllowedVideoType(contentType)) {
+            log.warn("Invalid video type: {}", contentType);
+            throw new IllegalArgumentException("Invalid video type. Supported: MP4, MPEG, MOV, AVI, MKV, WEBM");
+        }
+
+        // We still resolve user for auth check but won't save to DB
+        resolveAuthenticatedUser(authHeader);
+
+        // Call AI Gateway Service (FastAPI)
+        AiPredictResponseDto prediction = aiGatewayService.predictVideo(file);
+
+        return ResponseEntity.ok(prediction);
+    }
+
+    /**
+     * Check if content type is allowed for image prediction.
+     */
+    private boolean isAllowedImageType(String contentType) {
         if (contentType == null) {
             return false;
         }
-        for (String allowed : ALLOWED_CONTENT_TYPES) {
+        for (String allowed : ALLOWED_IMAGE_TYPES) {
+            if (contentType.equalsIgnoreCase(allowed)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if content type is allowed for video prediction.
+     */
+    private boolean isAllowedVideoType(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        for (String allowed : ALLOWED_VIDEO_TYPES) {
             if (contentType.equalsIgnoreCase(allowed)) {
                 return true;
             }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles, Eye, Sliders, Info, Cpu, BarChart3 } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles, Eye, Sliders, Info, Cpu, BarChart3, Video, Activity } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -11,11 +11,13 @@ import { apiClient, handleApiError } from '../utils/api';
  */
 export const DetectPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [videoPreview, setVideoPreview] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' or 'url'
+  const [activeTab, setActiveTab] = useState('upload'); // 'upload', 'url', 'video'
   const [error, setError] = useState(null);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.7);
   const canDetectFromUrl = false;
@@ -45,8 +47,33 @@ export const DetectPage = () => {
     reader.readAsDataURL(file);
   };
 
+  // Handle video file upload
+  const handleVideoFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 100 * 1024 * 1024) {
+      setError('Video file size must be less than 100MB');
+      return;
+    }
+
+    if (!file.type.startsWith('video/')) {
+      setError('Please upload a video file');
+      return;
+    }
+
+    setError(null);
+    setSelectedVideoFile(file);
+    setVideoPreview(URL.createObjectURL(file));
+  };
+
   const triggerFileInput = () => {
     const el = document.getElementById('file-upload');
+    if (el) el.click();
+  };
+
+  const triggerVideoInput = () => {
+    const el = document.getElementById('video-upload');
     if (el) el.click();
   };
 
@@ -91,6 +118,34 @@ export const DetectPage = () => {
     }
   };
 
+  // Handle detect video
+  const handleDetectVideo = async () => {
+    if (!selectedVideoFile) {
+      setError('Please select a video first');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.detectVideo(selectedVideoFile);
+      setResult({
+        ...response,
+        isVideo: true,
+      });
+      // Use key frame as preview if available
+      if (response.key_frame_base64) {
+        setPreview(response.key_frame_base64);
+      }
+    } catch (err) {
+      const errorResponse = handleApiError(err);
+      setError(errorResponse.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle detect from URL
   const handleDetectFromUrl = async () => {
     setError('Detect from URL is coming soon. Please upload an image file for now.');
@@ -98,7 +153,9 @@ export const DetectPage = () => {
 
   const clearResult = () => {
     setPreview(null);
+    setVideoPreview(null);
     setSelectedFile(null);
+    setSelectedVideoFile(null);
     setImageUrl('');
     setResult(null);
     setError(null);
@@ -116,9 +173,15 @@ export const DetectPage = () => {
             </p>
 
             {/* Tabs */}
+            {/* Tabs */}
             <div className="flex gap-4 mb-6 border-b border-gray-200">
               <button
-                onClick={() => setActiveTab('upload')}
+                onClick={() => {
+                  if (activeTab !== 'upload') {
+                    clearResult();
+                    setActiveTab('upload');
+                  }
+                }}
                 className={`py-2 px-4 font-semibold transition-colors ${
                   activeTab === 'upload'
                     ? 'border-b-2 border-blue-600 text-blue-600'
@@ -128,7 +191,27 @@ export const DetectPage = () => {
                 Upload Image
               </button>
               <button
-                onClick={() => setActiveTab('url')}
+                onClick={() => {
+                  if (activeTab !== 'video') {
+                    clearResult();
+                    setActiveTab('video');
+                  }
+                }}
+                className={`py-2 px-4 font-semibold transition-colors ${
+                  activeTab === 'video'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Detect Video
+              </button>
+              <button
+                onClick={() => {
+                  if (activeTab !== 'url') {
+                    clearResult();
+                    setActiveTab('url');
+                  }
+                }}
                 className={`py-2 px-4 font-semibold transition-colors ${
                   activeTab === 'url'
                     ? 'border-b-2 border-blue-600 text-blue-600'
@@ -206,9 +289,9 @@ export const DetectPage = () => {
                               <Eye size={24} className="text-blue-400" />
                             </div>
                             <div>
-                              <h4 className="text-base font-bold tracking-tight text-blue-50">Phân tích trực quan Grad-CAM</h4>
+                              <h4 className="text-base font-bold tracking-tight text-blue-50">Grad-CAM Visual Analysis</h4>
                               <p className="text-xs text-gray-400 font-medium">
-                                Di chuyển thanh trượt để soi vùng tác động nhiều nhất đến kết quả
+                                Move the slider to inspect the regions most impacting the results
                               </p>
                             </div>
                           </div>
@@ -236,16 +319,16 @@ export const DetectPage = () => {
                       {result?.heatmap_base64 && (
                         <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Đỏ</div>
-                            <div className="text-[9px] text-gray-500 font-medium">Độ tác động cao</div>
+                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Red Zone</div>
+                            <div className="text-[9px] text-gray-500 font-medium">High Impact</div>
                           </div>
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Vàng</div>
-                            <div className="text-[9px] text-gray-500 font-medium">Tác động trung bình</div>
+                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Yellow Zone</div>
+                            <div className="text-[9px] text-gray-500 font-medium">Medium Impact</div>
                           </div>
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Vùng Xanh</div>
-                            <div className="text-[9px] text-gray-500 font-medium">Ít tác động</div>
+                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Blue Zone</div>
+                            <div className="text-[9px] text-gray-500 font-medium">Low Impact</div>
                           </div>
                         </div>
                       )}
@@ -263,6 +346,157 @@ export const DetectPage = () => {
                         <Zap size={20} />
                         Detect Now
                       </Button>
+                    </div>
+                  </Card>
+                )}
+              </>
+            )}
+
+            {/* Video Tab */}
+            {activeTab === 'video' && (
+              <>
+                {!videoPreview && !result ? (
+                  <Card className="p-8 border-2 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer transition-colors">
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove('bg-blue-50');
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) {
+                          const event = { target: { files: [file] } };
+                          handleVideoFileChange(event);
+                        }
+                      }}
+                      className="flex flex-col items-center justify-center gap-4"
+                    >
+                      <div className="p-4 bg-purple-100 rounded-full">
+                        <Video size={32} className="text-purple-600" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold text-gray-900">
+                          Drag and drop your video here
+                        </p>
+                        <p className="text-gray-600">or click to browse</p>
+                      </div>
+                      <input
+                        type="file"
+                        onChange={handleVideoFileChange}
+                        accept="video/*"
+                        className="hidden"
+                        id="video-upload"
+                      />
+                      <div className="mt-2">
+                        <Button onClick={triggerVideoInput}>Choose Video</Button>
+                      </div>
+                      {selectedVideoFile && (
+                        <p className="text-xs text-gray-500">Selected: {selectedVideoFile.name}</p>
+                      )}
+                    </div>
+                  </Card>
+                ) : (
+                  <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-gray-200">
+                    <div className="relative">
+                      {!result ? (
+                        <div className="bg-gray-950 aspect-video flex items-center justify-center">
+                          <video
+                            src={videoPreview}
+                            controls
+                            className="max-w-full max-h-full"
+                          />
+                        </div>
+                      ) : (
+                        <div className="relative group">
+                          <div className="relative bg-gray-100 flex justify-center items-center py-4">
+                            <div className="relative inline-block overflow-hidden rounded-lg shadow-2xl">
+                              <img
+                                src={preview}
+                                alt="Key Frame Preview"
+                                className="block max-w-full max-h-[70vh] w-auto h-auto"
+                              />
+                              {result?.heatmap_base64 && (
+                                <img
+                                  src={result.heatmap_base64}
+                                  alt="Heatmap Overlay"
+                                  className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-300"
+                                  style={{
+                                    opacity: heatmapOpacity,
+                                    mixBlendMode: 'multiply',
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                          {/* XAI Controls for Video Keyframe */}
+                          {result?.heatmap_base64 && (
+                             <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
+                             <div className="flex items-center gap-4">
+                               <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
+                                 <Eye size={24} className="text-blue-400" />
+                               </div>
+                               <div>
+                                 <h4 className="text-base font-bold tracking-tight text-blue-50">Keyframe Analysis</h4>
+                                 <p className="text-xs text-gray-400 font-medium">
+                                   Move the slider to inspect impacting regions on the keyframe
+                                 </p>
+                               </div>
+                             </div>
+   
+                             <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
+                               <div className="flex items-center gap-4 min-w-[180px]">
+                                 <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
+                                   OPACITY: {Math.round(heatmapOpacity * 100)}%
+                                 </span>
+                                 <input
+                                   type="range"
+                                   min="0"
+                                   max="1"
+                                   step="0.01"
+                                   value={heatmapOpacity}
+                                   onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
+                                   className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                                 />
+                               </div>
+                             </div>
+                           </div>
+                          )}
+
+                          {/* Grad-CAM Legend for Video - Only show if heatmap exists */}
+                          {result?.heatmap_base64 && (
+                            <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
+                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
+                                <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Red Zone</div>
+                                <div className="text-[9px] text-gray-500 font-medium">High Impact</div>
+                              </div>
+                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
+                                <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Yellow Zone</div>
+                                <div className="text-[9px] text-gray-500 font-medium">Medium Impact</div>
+                              </div>
+                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
+                                <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Blue Zone</div>
+                                <div className="text-[9px] text-gray-500 font-medium">Low Impact</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6 flex gap-3">
+                      <Button onClick={clearResult} variant="secondary" className="flex-1">
+                        Change Video
+                      </Button>
+                      {!result && (
+                        <Button
+                          onClick={handleDetectVideo}
+                          loading={isLoading}
+                          disabled={isLoading}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700"
+                        >
+                          <Zap size={20} />
+                          Analyze Video
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 )}
@@ -334,7 +568,7 @@ export const DetectPage = () => {
             )}
 
             {/* Error Message */}
-            {error && activeTab === 'upload' && (
+            {error && (activeTab === 'upload' || activeTab === 'video') && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
                 <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
                 <p className="text-red-700">{error}</p>
@@ -356,9 +590,9 @@ export const DetectPage = () => {
                         </div>
                         <div>
                           <h3 className="text-xl font-bold text-gray-900 tracking-tight">
-                            Phân tích 5 đặc trưng CV
+                            CV Feature Analysis
                           </h3>
-                          <p className="text-sm text-gray-500 font-medium">Chi tiết thuật toán Computer Vision bổ trợ</p>
+                          <p className="text-sm text-gray-500 font-medium">Detailed Computer Vision auxiliary algorithms</p>
                         </div>
                       </div>
                       <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-100">
@@ -415,7 +649,7 @@ export const DetectPage = () => {
                     <div className="mt-8 pt-6 border-t border-gray-50 flex items-center gap-2 text-gray-400">
                       <Info size={14} />
                       <p className="text-[10px] font-medium italic">
-                        Các đặc trưng này được trích xuất bằng thư viện OpenCV và Skimage (FFT, GLCM, v.v.) để bổ trợ cho mô hình CNN.
+                        These features are extracted using OpenCV and Skimage (FFT, GLCM, etc.) libraries to support the CNN model.
                       </p>
                     </div>
                   </div>
@@ -491,13 +725,28 @@ const ResultDisplay = ({ result, onClear }) => {
         >
           {isAI ? <AlertCircle size={32} /> : <CheckCircle2 size={32} />}
         </div>
-        <div>
-          <h3 className={`text-2xl font-bold mb-1 ${isAI ? 'text-red-900' : 'text-green-900'}`}>
-            {isAI ? 'AI-Generated Content' : 'Authentic Image'}
-          </h3>
-          <p className={`${isAI ? 'text-red-700' : 'text-green-700'}`}>
-            Confidence: {confidence.toFixed(2)}%
-          </p>
+        <div className="flex-1">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className={`text-2xl font-bold mb-1 ${isAI ? 'text-red-900' : 'text-green-900'}`}>
+                {isAI ? (result.isVideo ? 'AI-Generated Video' : 'AI-Generated Content') : (result.isVideo ? 'Authentic Video' : 'Authentic Image')}
+              </h3>
+              <p className={`${isAI ? 'text-red-700' : 'text-green-700'}`}>
+                Confidence: {confidence.toFixed(2)}%
+              </p>
+            </div>
+            {result.isVideo && (
+              <div className="px-4 py-2 bg-white/50 rounded-xl border border-gray-200 shadow-sm">
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Consistency</p>
+                <div className="flex items-center gap-2">
+                  <Activity size={14} className="text-blue-500" />
+                  <span className="text-sm font-bold text-gray-900">
+                    {typeof result.consistency === 'number' ? Math.round(result.consistency) : 0}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
           {result.message && <p className="mt-2 text-sm text-gray-600">{result.message}</p>}
         </div>
       </div>
@@ -512,24 +761,40 @@ const ResultDisplay = ({ result, onClear }) => {
         </div>
       </div>
 
+      {/* Video Specific: Votes/Timeline */}
+      {result.isVideo && result.votes && (
+        <div className="grid grid-cols-2 gap-4 mb-6">
+           <div className="p-4 bg-white/80 rounded-2xl border border-red-100">
+            <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-1">AI Frames</p>
+            <p className="text-2xl font-black text-red-600">{result.votes.AI || 0}</p>
+          </div>
+          <div className="p-4 bg-white/80 rounded-2xl border border-green-100">
+            <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-1">Real Frames</p>
+            <p className="text-2xl font-black text-green-600">{result.votes.REAL || 0}</p>
+          </div>
+        </div>
+      )}
+
       {/* Details */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="p-3 bg-white rounded-lg">
-          <p className="text-gray-600 text-sm">AI Probability</p>
-          <p className="text-lg font-bold text-gray-900">
-            {(result.ai_probability || 0).toFixed(2)}%
-          </p>
+      {!result.isVideo && (
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="p-3 bg-white rounded-lg">
+            <p className="text-gray-600 text-sm">AI Probability</p>
+            <p className="text-lg font-bold text-gray-900">
+              {(result.ai_probability || 0).toFixed(2)}%
+            </p>
+          </div>
+          <div className="p-3 bg-white rounded-lg">
+            <p className="text-gray-600 text-sm">Real Probability</p>
+            <p className="text-lg font-bold text-gray-900">
+              {(result.real_probability || 0).toFixed(2)}%
+            </p>
+          </div>
         </div>
-        <div className="p-3 bg-white rounded-lg">
-          <p className="text-gray-600 text-sm">Real Probability</p>
-          <p className="text-lg font-bold text-gray-900">
-            {(result.real_probability || 0).toFixed(2)}%
-          </p>
-        </div>
-      </div>
+      )}
 
       <Button onClick={onClear} variant="secondary" className="w-full">
-        Analyze Another Image
+        Analyze Another {result.isVideo ? 'Video' : 'Image'}
       </Button>
     </Card>
   );
