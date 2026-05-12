@@ -111,3 +111,4 @@ Response: { "status": "success", "prediction": "AI-GENERATED", "confidence": "58
 ---
 
 Enjoy! 🎉
+oke
