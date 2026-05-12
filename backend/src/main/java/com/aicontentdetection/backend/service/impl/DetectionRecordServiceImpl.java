@@ -11,8 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -70,12 +72,24 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                 .build();
     }
 
-        @Override
-        public DetectionStats getStats(Long userId) {
-                long totalDetections = detectionRecordRepository.countByUserId(userId);
-                long aiDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "AI-GENERATED");
-                long realDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "REAL-IMAGE");
+    @Override
+    public void deleteHistoryItem(Long userId, Long recordId) {
+        DetectionRecord record = detectionRecordRepository.findById(recordId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "History item not found"));
 
-                return new DetectionStats(totalDetections, aiDetections, realDetections);
+        if (!record.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to delete this history item");
         }
+
+        detectionRecordRepository.delete(record);
+    }
+
+    @Override
+    public DetectionStats getStats(Long userId) {
+        long totalDetections = detectionRecordRepository.countByUserId(userId);
+        long aiDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "AI-GENERATED");
+        long realDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "REAL-IMAGE");
+
+        return new DetectionStats(totalDetections, aiDetections, realDetections);
+    }
 }

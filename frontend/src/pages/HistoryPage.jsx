@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, MessageSquarePlus, ImageOff } from 'lucide-react';
+import { Filter, MessageSquarePlus, ImageOff, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
@@ -16,6 +16,7 @@ export const HistoryPage = () => {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deletingIds, setDeletingIds] = useState([]);
   const navigate = useNavigate();
 
   // Fetch history on mount
@@ -47,6 +48,32 @@ export const HistoryPage = () => {
   const prepareFeedback = (id) => {
     localStorage.setItem('pendingFeedbackImageId', String(id));
     navigate(ROUTES.FEEDBACK);
+  };
+
+  const normalizeConfidenceValue = (value) => {
+    const numeric = Number(value || 0);
+    if (Number.isNaN(numeric)) {
+      return 0;
+    }
+
+    return numeric > 100 ? numeric / 100 : numeric;
+  };
+
+  const handleDeleteItem = async (id) => {
+    const confirmed = window.confirm('Are you sure you want to delete this history item?');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingIds((current) => [...current, id]);
+      await apiClient.deleteHistoryItem(id);
+      setHistory((current) => current.filter((item) => item.id !== id));
+    } catch (err) {
+      setError(err.message || 'Failed to delete history item');
+    } finally {
+      setDeletingIds((current) => current.filter((itemId) => itemId !== id));
+    }
   };
 
   const formatDate = (timestamp) => {
@@ -172,10 +199,7 @@ export const HistoryPage = () => {
                           {item.prediction}
                         </Badge>
                         <span className="text-sm font-semibold text-gray-900">
-                          {typeof item.confidence === 'number'
-                            ? item.confidence.toFixed(2)
-                            : Number(item.confidence || 0).toFixed(2)}
-                          %
+                          {normalizeConfidenceValue(item.confidence).toFixed(2)}%
                         </span>
                       </div>
 
@@ -189,6 +213,15 @@ export const HistoryPage = () => {
                           className="w-full"
                         >
                           <MessageSquarePlus size={16} /> Send feedback
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteItem(item.id)}
+                          variant="danger"
+                          size="sm"
+                          className="w-full"
+                          disabled={deletingIds.includes(item.id)}
+                        >
+                          <Trash2 size={16} /> {deletingIds.includes(item.id) ? 'Deleting...' : 'Delete'}
                         </Button>
                       </div>
                     </div>

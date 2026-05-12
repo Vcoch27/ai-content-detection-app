@@ -11,6 +11,8 @@ public interface DetectionRecordService {
 
     DetectionHistoryResponseDto getHistory(Long userId, int page, int limit);
 
+    void deleteHistoryItem(Long userId, Long recordId);
+
     DetectionStats getStats(Long userId);
 
     record DetectionStats(long totalDetections, long aiDetections, long realDetections) {

@@ -138,6 +138,13 @@ export const apiClient = {
     });
   },
 
+  deleteHistoryItem: async (id) => {
+    return request(`/history/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  },
+
   submitFeedback: async (feedback) => {
     const payload = {
       imageId: Number(feedback.imageId),
