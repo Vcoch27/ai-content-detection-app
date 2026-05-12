@@ -139,10 +139,32 @@ public class AiPredictController {
         }
 
         // We still resolve user for auth check but won't save to DB
-        resolveAuthenticatedUser(authHeader);
+        AppUser currentUser = resolveAuthenticatedUser(authHeader);
+
+        // Upload Video to S3
+        StoredObject videoObject = s3StorageService.upload(file, "detections/videos/" + currentUser.getId());
 
         // Call AI Gateway Service (FastAPI)
         AiPredictResponseDto prediction = aiGatewayService.predictVideo(file);
+
+        // Handle Keyframe / Thumbnail
+        StoredObject thumbnailObject = null;
+        if (prediction.getKeyFrameBase64() != null) {
+            try {
+                String base64Data = prediction.getKeyFrameBase64();
+                if (base64Data.contains(",")) {
+                    base64Data = base64Data.split(",")[1];
+                }
+                byte[] decodedBytes = java.util.Base64.getDecoder().decode(base64Data);
+                String thumbFilename = "thumb_" + file.getOriginalFilename() + ".jpg";
+                thumbnailObject = s3StorageService.uploadBytes(decodedBytes, thumbFilename, "image/jpeg", "detections/thumbnails/" + currentUser.getId());
+            } catch (Exception e) {
+                log.error("Failed to upload video thumbnail to S3", e);
+            }
+        }
+
+        // Save Record to History
+        detectionRecordService.saveVideoPrediction(currentUser.getId(), file, prediction, videoObject, thumbnailObject);
 
         return ResponseEntity.ok(prediction);
     }

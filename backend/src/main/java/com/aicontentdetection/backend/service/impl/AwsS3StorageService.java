@@ -48,4 +48,23 @@ public class AwsS3StorageService implements S3StorageService {
             throw new IllegalStateException("Failed to upload file to S3", ex);
         }
     }
+    @Override
+    public StoredObject uploadBytes(byte[] bytes, String filename, String contentType, String objectKeyPrefix) {
+        String cleanFilename = StringUtils.cleanPath(filename == null ? "upload" : filename);
+        String datePrefix = LocalDate.now().toString();
+        String key = String.format("%s/%s/%s-%s",
+                objectKeyPrefix == null ? "uploads" : objectKeyPrefix,
+                datePrefix,
+                UUID.randomUUID(),
+                cleanFilename);
+
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .contentType(contentType)
+                .build();
+
+        PutObjectResponse response = s3Client.putObject(request, RequestBody.fromBytes(bytes));
+        return new StoredObject(bucketName, key, response.eTag());
+    }
 }
