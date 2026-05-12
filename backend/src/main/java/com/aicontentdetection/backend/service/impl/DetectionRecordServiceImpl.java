@@ -18,11 +18,16 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DetectionRecordServiceImpl implements DetectionRecordService {
 
     private final DetectionRecordRepository detectionRecordRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public DetectionRecord savePrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject storedObject) {
@@ -39,6 +44,40 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                 .realProbability(prediction.getRealProbability())
                 .aiServiceMessage(prediction.getMessage())
                 .source("AI_SERVICE")
+                .detectionType("IMAGE")
+                .build();
+
+        return detectionRecordRepository.save(record);
+    }
+
+    @Override
+    public DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject, StoredObject thumbnailObject) {
+        String metadata = null;
+        try {
+            java.util.Map<String, Object> metaMap = new java.util.HashMap<>();
+            metaMap.put("consistency", prediction.getConsistency());
+            metaMap.put("votes", prediction.getVotes());
+            metaMap.put("timeline", prediction.getTimeline());
+            metaMap.put("cv_analysis", prediction.getCvAnalysis());
+            metadata = objectMapper.writeValueAsString(metaMap);
+        } catch (Exception e) {
+            log.error("Failed to serialize video metadata", e);
+        }
+
+        DetectionRecord record = DetectionRecord.builder()
+                .userId(userId)
+                .originalFilename(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .storageBucket(videoObject != null ? videoObject.bucket() : null)
+                .storageKey(videoObject != null ? videoObject.key() : null)
+                .thumbnailKey(thumbnailObject != null ? thumbnailObject.key() : null)
+                .prediction(prediction.getPrediction())
+                .confidence(prediction.getConfidenceAsDouble() >= 0 ? prediction.getConfidenceAsDouble() : 0.0)
+                .aiServiceMessage(prediction.getMessage())
+                .source("AI_SERVICE")
+                .detectionType("VIDEO")
+                .metadata(metadata)
                 .build();
 
         return detectionRecordRepository.save(record);
@@ -60,7 +99,8 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                         .timestamp(record.getCreatedAt())
                         .storageBucket(record.getStorageBucket())
                         .storageKey(record.getStorageKey())
-                        .thumbnail(record.getStorageKey())
+                        .thumbnail("VIDEO".equals(record.getDetectionType()) ? record.getThumbnailKey() : record.getStorageKey())
+                        .detectionType(record.getDetectionType())
                         .build())
                 .toList();
 

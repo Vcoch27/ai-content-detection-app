@@ -60,4 +60,13 @@ public class DetectionRecord extends BaseTimestampEntity {
 
     @Column(nullable = false, length = 50)
     private String source = "AI_SERVICE";
+
+    @Column(name = "detection_type", length = 20)
+    private String detectionType = "IMAGE"; // IMAGE, VIDEO
+
+    @Column(name = "metadata", columnDefinition = "LONGTEXT")
+    private String metadata; // Stores JSON of extra metrics
+
+    @Column(name = "thumbnail_key", length = 512)
+    private String thumbnailKey; // S3 key for the keyframe image
 }

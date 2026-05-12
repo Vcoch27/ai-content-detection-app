@@ -131,6 +131,18 @@ export const apiClient = {
     });
   },
 
+  detectVideo: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return request('/predict-video', {
+      method: 'POST',
+      auth: true,
+      json: false,
+      body: formData,
+    });
+  },
+
   getHistory: async (page = 1, limit = 10) => {
     return request(`/history?page=${page}&limit=${limit}`, {
       method: 'GET',

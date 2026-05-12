@@ -20,4 +20,5 @@ public class DetectionHistoryItemDto {
     private String thumbnail;
     private String storageBucket;
     private String storageKey;
+    private String detectionType;
 }

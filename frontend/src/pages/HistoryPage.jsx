@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, MessageSquarePlus, ImageOff, Trash2 } from 'lucide-react';
+import { Filter, MessageSquarePlus, ImageOff, Trash2, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
@@ -12,7 +12,7 @@ import { ROUTES } from '../constants/theme';
  * HistoryPage - View detection history
  */
 export const HistoryPage = () => {
-  const [filter, setFilter] = useState('all'); // 'all', 'ai', 'real'
+  const [filter, setFilter] = useState('all'); // 'all', 'ai', 'real', 'video'
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,6 +41,7 @@ export const HistoryPage = () => {
       const prediction = (item.prediction || '').toUpperCase();
       if (filter === 'ai') return prediction.includes('AI');
       if (filter === 'real') return prediction.includes('REAL');
+      if (filter === 'video') return item.detectionType === 'VIDEO';
       return true;
     });
   }, [history, filter]);
@@ -91,7 +92,8 @@ export const HistoryPage = () => {
       return item.imageUrl;
     }
 
-    return apiClient.getPublicDetectionImageUrl(item.storageBucket, item.storageKey);
+    const key = item.thumbnail || item.storageKey;
+    return apiClient.getPublicDetectionImageUrl(item.storageBucket, key);
   };
 
   return (
@@ -99,7 +101,7 @@ export const HistoryPage = () => {
       <div>
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Detection History</h1>
         <p className="text-gray-600 mb-8">
-          View all your image detections and filter by result type
+          View all your image and video detections and filter by result type
         </p>
 
         {/* Loading State */}
@@ -153,6 +155,17 @@ export const HistoryPage = () => {
                 Real (
                 {history.filter((i) => (i.prediction || '').toUpperCase().includes('REAL')).length})
               </button>
+              <button
+                onClick={() => setFilter('video')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                  filter === 'video'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <Video size={18} /> Video (
+                {history.filter((i) => i.detectionType === 'VIDEO').length})
+              </button>
             </div>
 
             {/* History List */}
@@ -174,11 +187,18 @@ export const HistoryPage = () => {
                     ) : (
                       <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
                         <div className="text-center">
-                          <ImageOff size={28} className="mx-auto mb-2" />
+                          {item.detectionType === 'VIDEO' ? <Video size={28} className="mx-auto mb-2" /> : <ImageOff size={28} className="mx-auto mb-2" />}
                           <p className="text-sm">No preview available</p>
                         </div>
                       </div>
                     )}
+                    
+                    {item.detectionType === 'VIDEO' && (
+                      <div className="absolute top-2 left-2 bg-purple-600 text-white p-1 rounded-md shadow-lg">
+                        <Video size={14} />
+                      </div>
+                    )}
+
 
                     {/* Content */}
                     <div className="p-4">
@@ -196,7 +216,10 @@ export const HistoryPage = () => {
                               : 'success'
                           }
                         >
-                          {item.prediction}
+                          {item.detectionType === 'VIDEO' 
+                            ? (item.prediction.includes('AI') ? 'AI VIDEO' : 'REAL VIDEO')
+                            : item.prediction
+                          }
                         </Badge>
                         <span className="text-sm font-semibold text-gray-900">
                           {normalizeConfidenceValue(item.confidence).toFixed(2)}%

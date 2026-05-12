@@ -37,6 +37,9 @@ public class AiGatewayServiceImpl implements AiGatewayService {
     @Value("${ai.service.predict-endpoint}")
     private String predictEndpoint;
 
+    @Value("${ai.service.predict-video-endpoint}")
+    private String predictVideoEndpoint;
+
     public AiGatewayServiceImpl(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
@@ -62,19 +65,33 @@ public class AiGatewayServiceImpl implements AiGatewayService {
         }
     }
 
-    /**
-     * Send raw image bytes to FastAPI /predict endpoint as multipart form data.
-     * Maps the response to AiPredictResponseDto.
-     */
     @Override
-    public AiPredictResponseDto predictImageBytes(byte[] imageBytes, String filename) {
-        String predictUrl = aiServiceBaseUrl + predictEndpoint;
-        log.debug("Calling AI service: POST {} with file: {}", predictUrl, filename);
+    public AiPredictResponseDto predictVideo(MultipartFile videoFile) {
+        try {
+            byte[] videoBytes = videoFile.getBytes();
+            String filename = videoFile.getOriginalFilename();
+            return callAiService(videoBytes, filename, predictVideoEndpoint);
+        } catch (IOException e) {
+            log.error("Failed to read video file bytes: {}", e.getMessage());
+            throw new AiServiceException(
+                    "Failed to process video file",
+                    500,
+                    "IOException while reading file: " + e.getMessage(),
+                    e
+            );
+        }
+    }
+
+    /**
+     * Internal method to call AI service with generic endpoint.
+     */
+    private AiPredictResponseDto callAiService(byte[] fileBytes, String filename, String endpoint) {
+        String url = aiServiceBaseUrl + endpoint;
+        log.debug("Calling AI service: POST {} with file: {}", url, filename);
 
         try {
-            // Create multipart form data with image bytes wrapped in ByteArrayResource
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            ByteArrayResource resource = new ByteArrayResource(imageBytes) {
+            ByteArrayResource resource = new ByteArrayResource(fileBytes) {
                 @Override
                 public String getFilename() {
                     return filename;
@@ -82,14 +99,12 @@ public class AiGatewayServiceImpl implements AiGatewayService {
             };
             body.add("file", resource);
 
-            // Set content type for multipart
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            // Call FastAPI /predict endpoint
-                AiPredictResponseDto response = restTemplate.postForObject(
-                    predictUrl,
+            AiPredictResponseDto response = restTemplate.postForObject(
+                    url,
                     requestEntity,
                     AiPredictResponseDto.class
             );
@@ -117,7 +132,6 @@ public class AiGatewayServiceImpl implements AiGatewayService {
             }
 
             return normalizedResponse;
-
         } catch (HttpClientErrorException e) {
             log.error("AI service client error (HTTP {}): {}", e.getStatusCode(), e.getMessage());
             throw new AiServiceException(
@@ -136,24 +150,22 @@ public class AiGatewayServiceImpl implements AiGatewayService {
             );
         } catch (ResourceAccessException e) {
             log.error("AI service connection error: {}", e.getMessage());
-            // ResourceAccessException typically means timeout or connection refused
             if (e.getMessage() != null && e.getMessage().contains("timed out")) {
                 throw new AiServiceException(
                         "AI service request timed out",
                         HttpStatus.GATEWAY_TIMEOUT.value(),
-                        "Connection timeout to AI service after configured timeout period",
+                        "Connection timeout to AI service",
                         e
                 );
             } else {
                 throw new AiServiceException(
                         "AI service connection error: " + e.getMessage(),
                         HttpStatus.BAD_GATEWAY.value(),
-                        "Failed to connect to AI service: " + e.getMessage(),
+                        "Failed to connect to AI service",
                         e
                 );
             }
         } catch (AiServiceException e) {
-            // Re-throw AiServiceException as-is
             throw e;
         } catch (Exception e) {
             log.error("Unexpected error calling AI service: {}", e.getMessage(), e);
@@ -164,6 +176,15 @@ public class AiGatewayServiceImpl implements AiGatewayService {
                     e
             );
         }
+    }
+
+    /**
+     * Send raw image bytes to FastAPI /predict endpoint as multipart form data.
+     * Maps the response to AiPredictResponseDto.
+     */
+    @Override
+    public AiPredictResponseDto predictImageBytes(byte[] imageBytes, String filename) {
+        return callAiService(imageBytes, filename, predictEndpoint);
     }
 
     /**

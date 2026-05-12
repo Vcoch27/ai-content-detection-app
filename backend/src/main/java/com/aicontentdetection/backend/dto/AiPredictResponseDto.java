@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * DTO for response from FastAPI AI service /predict endpoint.
@@ -67,6 +68,30 @@ public class AiPredictResponseDto {
     private List<CvFeatureAnalysisDto> cvAnalysis;
 
     /**
+     * Consistency of the video detection results across frames
+     */
+    @JsonProperty("consistency")
+    private Double consistency;
+
+    /**
+     * Vote count for each category in video detection
+     */
+    @JsonProperty("votes")
+    private Map<String, Integer> votes;
+
+    /**
+     * Timeline of predictions for each frame in video detection
+     */
+    @JsonProperty("timeline")
+    private List<Object> timeline;
+
+    /**
+     * Base64 encoded string of the key frame image
+     */
+    @JsonProperty("key_frame_base64")
+    private String keyFrameBase64;
+
+    /**
      * Check if prediction was successful
      */
     public boolean isSuccess() {
@@ -110,6 +135,10 @@ public class AiPredictResponseDto {
                 .realProbability(upstream.getRealProbability())
                 .heatmapBase64(upstream.getHeatmapBase64())
                 .cvAnalysis(upstream.getCvAnalysis())
+                .consistency(upstream.getConsistency())
+                .votes(upstream.getVotes())
+                .timeline(upstream.getTimeline())
+                .keyFrameBase64(upstream.getKeyFrameBase64())
                 .build();
     }
 
