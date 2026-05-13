@@ -51,7 +51,7 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
     }
 
     @Override
-    public DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject, StoredObject thumbnailObject) {
+    public DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject) {
         String metadata = null;
         try {
             java.util.Map<String, Object> metaMap = new java.util.HashMap<>();
@@ -71,7 +71,6 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                 .fileSize(file.getSize())
                 .storageBucket(videoObject != null ? videoObject.bucket() : null)
                 .storageKey(videoObject != null ? videoObject.key() : null)
-                .thumbnailKey(thumbnailObject != null ? thumbnailObject.key() : null)
                 .prediction(prediction.getPrediction())
                 .confidence(prediction.getConfidenceAsDouble() >= 0 ? prediction.getConfidenceAsDouble() : 0.0)
                 .aiServiceMessage(prediction.getMessage())
@@ -99,7 +98,6 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                         .timestamp(record.getCreatedAt())
                         .storageBucket(record.getStorageBucket())
                         .storageKey(record.getStorageKey())
-                        .thumbnail("VIDEO".equals(record.getDetectionType()) ? record.getThumbnailKey() : record.getStorageKey())
                         .detectionType(record.getDetectionType())
                         .build())
                 .toList();

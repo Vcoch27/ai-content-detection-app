@@ -91,9 +91,7 @@ export const HistoryPage = () => {
     if (item.imageUrl) {
       return item.imageUrl;
     }
-
-    const key = item.thumbnail || item.storageKey;
-    return apiClient.getPublicDetectionImageUrl(item.storageBucket, key);
+    return apiClient.getPublicDetectionImageUrl(item.storageBucket, item.storageKey);
   };
 
   return (
@@ -177,25 +175,31 @@ export const HistoryPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredHistory.map((item) => (
                   <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    {/* Thumbnail */}
-                    {getImageUrl(item) ? (
+                    {/* Thumbnail/Preview */}
+                    {item.detectionType === 'VIDEO' ? (
+                      <video
+                        src={getImageUrl(item)}
+                        className="w-full h-48 object-cover bg-gray-100"
+                        controls
+                      />
+                    ) : (
                       <img
                         src={getImageUrl(item)}
                         alt={item.filename}
                         className="w-full h-48 object-cover"
                       />
-                    ) : (
-                      <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
-                        <div className="text-center">
-                          {item.detectionType === 'VIDEO' ? <Video size={28} className="mx-auto mb-2" /> : <ImageOff size={28} className="mx-auto mb-2" />}
-                          <p className="text-sm">No preview available</p>
-                        </div>
-                      </div>
                     )}
                     
-                    {item.detectionType === 'VIDEO' && (
-                      <div className="absolute top-2 left-2 bg-purple-600 text-white p-1 rounded-md shadow-lg">
-                        <Video size={14} />
+                    {getImageUrl(item) === '' && (
+                      <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
+                        <div className="text-center">
+                          {item.detectionType === 'VIDEO' ? (
+                            <Video size={28} className="mx-auto mb-2" />
+                          ) : (
+                            <ImageOff size={28} className="mx-auto mb-2" />
+                          )}
+                          <p className="text-sm">No preview available</p>
+                        </div>
                       </div>
                     )}
 

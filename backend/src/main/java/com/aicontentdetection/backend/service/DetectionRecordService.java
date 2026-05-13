@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 public interface DetectionRecordService {
     DetectionRecord savePrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject storedObject);
     
-    DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject, StoredObject thumbnailObject);
+    DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject);
 
     DetectionHistoryResponseDto getHistory(Long userId, int page, int limit);
 

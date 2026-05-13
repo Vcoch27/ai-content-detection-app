@@ -66,7 +66,4 @@ public class DetectionRecord extends BaseTimestampEntity {
 
     @Column(name = "metadata", columnDefinition = "LONGTEXT")
     private String metadata; // Stores JSON of extra metrics
-
-    @Column(name = "thumbnail_key", length = 512)
-    private String thumbnailKey; // S3 key for the keyframe image
 }
