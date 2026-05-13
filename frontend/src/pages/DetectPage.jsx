@@ -19,7 +19,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { apiClient, handleApiError } from '../utils/api';
 
-const VIDEO_TRIM_MIN_SECONDS = 3;
+const VIDEO_TRIM_MIN_SECONDS = 5;
 const VIDEO_TRIM_MAX_SECONDS = 10;
 const MAX_VIDEO_UPLOAD_BYTES = 20 * 1024 * 1024;
 
