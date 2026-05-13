@@ -1,5 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles, Eye, Sliders, Info, Cpu, BarChart3, Video, Activity } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Upload,
+  AlertCircle,
+  CheckCircle2,
+  Zap,
+  Sparkles,
+  Eye,
+  Sliders,
+  Info,
+  Cpu,
+  BarChart3,
+  Video,
+  Activity,
+} from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -25,12 +38,15 @@ const trimVideoSegment = async (sourceFile, startSeconds, durationSeconds = VIDE
 
     const captureStream = videoEl.captureStream || videoEl.mozCaptureStream;
     if (!captureStream) {
-      throw new Error('Browser does not support in-browser video trimming. Please use Chrome or Edge.');
+      throw new Error(
+        'Browser does not support in-browser video trimming. Please use Chrome or Edge.'
+      );
     }
 
     const stream = captureStream.call(videoEl);
     const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-    const selectedMimeType = mimeCandidates.find((type) => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+    const selectedMimeType =
+      mimeCandidates.find((type) => MediaRecorder.isTypeSupported(type)) || 'video/webm';
     const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
     const recordedChunks = [];
 
@@ -105,9 +121,34 @@ export const DetectPage = () => {
   const [error, setError] = useState(null);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.7);
   const canDetectFromUrl = false;
+  const videoPlayerRef = useRef(null);
+  const videoLoopEndRef = useRef(0);
 
   const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
-  const maxTrimStart = useMemo(() => Math.max(videoDuration - VIDEO_TRIM_SECONDS, 0), [videoDuration]);
+  const maxTrimStart = useMemo(
+    () => Math.max(videoDuration - VIDEO_TRIM_SECONDS, 0),
+    [videoDuration]
+  );
+
+  const syncVideoPreviewToTrim = (startSeconds) => {
+    const player = videoPlayerRef.current;
+    if (!player || !Number.isFinite(player.duration) || player.duration <= 0) {
+      return;
+    }
+
+    const safeStart = Math.max(0, Math.min(startSeconds, Math.max(player.duration - 0.1, 0)));
+    const loopEnd = Math.min(player.duration, safeStart + VIDEO_TRIM_SECONDS);
+
+    videoLoopEndRef.current = loopEnd;
+    player.currentTime = safeStart;
+
+    const playPromise = player.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        // Ignore autoplay restrictions; user can hit play manually.
+      });
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -157,6 +198,7 @@ export const DetectPage = () => {
     setVideoDuration(0);
     setVideoTrimStart(0);
     setTrimmedVideoInfo(null);
+    videoLoopEndRef.current = 0;
     setVideoPreview((currentPreview) => {
       if (currentPreview) {
         URL.revokeObjectURL(currentPreview);
@@ -227,9 +269,15 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      const trimmedFile = await trimVideoSegment(selectedVideoFile, videoTrimStart, VIDEO_TRIM_SECONDS);
+      const trimmedFile = await trimVideoSegment(
+        selectedVideoFile,
+        videoTrimStart,
+        VIDEO_TRIM_SECONDS
+      );
       if (trimmedFile.size > MAX_VIDEO_UPLOAD_BYTES) {
-        throw new Error('Trimmed video segment exceeds 20MB. Please choose a shorter or lower-resolution segment.');
+        throw new Error(
+          'Trimmed video segment exceeds 20MB. Please choose a shorter or lower-resolution segment.'
+        );
       }
 
       const response = await apiClient.detectVideo(trimmedFile);
@@ -271,10 +319,17 @@ export const DetectPage = () => {
     setVideoDuration(0);
     setVideoTrimStart(0);
     setTrimmedVideoInfo(null);
+    videoLoopEndRef.current = 0;
     setImageUrl('');
     setResult(null);
     setError(null);
   };
+
+  useEffect(() => {
+    if (activeTab === 'video' && selectedVideoFile && videoDuration > 0) {
+      syncVideoPreviewToTrim(videoTrimStart);
+    }
+  }, [activeTab, selectedVideoFile, videoDuration, videoTrimStart]);
 
   return (
     <MainLayout>
@@ -407,7 +462,9 @@ export const DetectPage = () => {
                               <Eye size={24} className="text-blue-400" />
                             </div>
                             <div>
-                              <h4 className="text-base font-bold tracking-tight text-blue-50">Grad-CAM Visual Analysis</h4>
+                              <h4 className="text-base font-bold tracking-tight text-blue-50">
+                                Grad-CAM Visual Analysis
+                              </h4>
                               <p className="text-xs text-gray-400 font-medium">
                                 Move the slider to inspect the regions most impacting the results
                               </p>
@@ -437,15 +494,23 @@ export const DetectPage = () => {
                       {result?.heatmap_base64 && (
                         <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Red Zone</div>
+                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                              Red Zone
+                            </div>
                             <div className="text-[9px] text-gray-500 font-medium">High Impact</div>
                           </div>
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Yellow Zone</div>
-                            <div className="text-[9px] text-gray-500 font-medium">Medium Impact</div>
+                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                              Yellow Zone
+                            </div>
+                            <div className="text-[9px] text-gray-500 font-medium">
+                              Medium Impact
+                            </div>
                           </div>
                           <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Blue Zone</div>
+                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                              Blue Zone
+                            </div>
                             <div className="text-[9px] text-gray-500 font-medium">Low Impact</div>
                           </div>
                         </div>
@@ -521,10 +586,31 @@ export const DetectPage = () => {
                           <video
                             src={videoPreview}
                             controls
+                            ref={videoPlayerRef}
                             onLoadedMetadata={(event) => {
                               const duration = Number(event.currentTarget.duration || 0);
                               setVideoDuration(duration);
                               setVideoTrimStart(0);
+                              videoLoopEndRef.current = Math.min(duration, VIDEO_TRIM_SECONDS);
+                              event.currentTarget.currentTime = 0;
+                            }}
+                            onTimeUpdate={(event) => {
+                              const player = event.currentTarget;
+                              if (videoLoopEndRef.current > 0 && player.currentTime >= videoLoopEndRef.current) {
+                                player.currentTime = videoTrimStart;
+                                const playPromise = player.play();
+                                if (playPromise && typeof playPromise.catch === 'function') {
+                                  playPromise.catch(() => {
+                                    // ignore autoplay restrictions while looping
+                                  });
+                                }
+                              }
+                            }}
+                            onSeeked={(event) => {
+                              const player = event.currentTarget;
+                              if (player.currentTime < videoTrimStart || player.currentTime >= videoLoopEndRef.current) {
+                                player.currentTime = videoTrimStart;
+                              }
                             }}
                             className="max-w-full max-h-full"
                           />
@@ -553,52 +639,66 @@ export const DetectPage = () => {
                           </div>
                           {/* XAI Controls for Video Keyframe */}
                           {result?.heatmap_base64 && (
-                             <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
-                             <div className="flex items-center gap-4">
-                               <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
-                                 <Eye size={24} className="text-blue-400" />
-                               </div>
-                               <div>
-                                 <h4 className="text-base font-bold tracking-tight text-blue-50">Keyframe Analysis</h4>
-                                 <p className="text-xs text-gray-400 font-medium">
-                                   Move the slider to inspect impacting regions on the keyframe
-                                 </p>
-                               </div>
-                             </div>
-   
-                             <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
-                               <div className="flex items-center gap-4 min-w-[180px]">
-                                 <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
-                                   OPACITY: {Math.round(heatmapOpacity * 100)}%
-                                 </span>
-                                 <input
-                                   type="range"
-                                   min="0"
-                                   max="1"
-                                   step="0.01"
-                                   value={heatmapOpacity}
-                                   onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
-                                   className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                                 />
-                               </div>
-                             </div>
-                           </div>
+                            <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
+                              <div className="flex items-center gap-4">
+                                <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
+                                  <Eye size={24} className="text-blue-400" />
+                                </div>
+                                <div>
+                                  <h4 className="text-base font-bold tracking-tight text-blue-50">
+                                    Keyframe Analysis
+                                  </h4>
+                                  <p className="text-xs text-gray-400 font-medium">
+                                    Move the slider to inspect impacting regions on the keyframe
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
+                                <div className="flex items-center gap-4 min-w-[180px]">
+                                  <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
+                                    OPACITY: {Math.round(heatmapOpacity * 100)}%
+                                  </span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={heatmapOpacity}
+                                    onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
+                                    className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
                           )}
 
                           {/* Grad-CAM Legend for Video - Only show if heatmap exists */}
                           {result?.heatmap_base64 && (
                             <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
                               <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Red Zone</div>
-                                <div className="text-[9px] text-gray-500 font-medium">High Impact</div>
+                                <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                                  Red Zone
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-medium">
+                                  High Impact
+                                </div>
                               </div>
                               <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Yellow Zone</div>
-                                <div className="text-[9px] text-gray-500 font-medium">Medium Impact</div>
+                                <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                                  Yellow Zone
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-medium">
+                                  Medium Impact
+                                </div>
                               </div>
                               <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">Blue Zone</div>
-                                <div className="text-[9px] text-gray-500 font-medium">Low Impact</div>
+                                <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
+                                  Blue Zone
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-medium">
+                                  Low Impact
+                                </div>
                               </div>
                             </div>
                           )}
@@ -624,12 +724,14 @@ export const DetectPage = () => {
                     {!result && (
                       <div className="px-6 pb-6 space-y-3">
                         <div className="p-3 rounded-lg bg-purple-50 border border-purple-100 text-sm text-purple-800">
-                          Only a {VIDEO_TRIM_SECONDS}-second clip is sent for AI detection. Backend accepts clips up to 20MB.
+                          Only a {VIDEO_TRIM_SECONDS}-second clip is sent for AI detection. Backend
+                          accepts clips up to 20MB.
                         </div>
                         {videoDuration > 0 && (
                           <>
                             <label className="block text-sm font-semibold text-gray-700">
-                              Clip start time: {videoTrimStart.toFixed(1)}s - {(videoTrimStart + VIDEO_TRIM_SECONDS).toFixed(1)}s
+                              Clip start time: {videoTrimStart.toFixed(1)}s -{' '}
+                              {(videoTrimStart + VIDEO_TRIM_SECONDS).toFixed(1)}s
                             </label>
                             <input
                               type="range"
@@ -637,14 +739,19 @@ export const DetectPage = () => {
                               max={maxTrimStart}
                               step="0.1"
                               value={videoTrimStart}
-                              onChange={(event) => setVideoTrimStart(Number(event.target.value))}
+                              onChange={(event) => {
+                                const nextStart = Number(event.target.value);
+                                setVideoTrimStart(nextStart);
+                                syncVideoPreviewToTrim(nextStart);
+                              }}
                               className="w-full"
                             />
                           </>
                         )}
                         {trimmedVideoInfo && (
                           <p className="text-xs text-gray-500">
-                            Last uploaded clip: {trimmedVideoInfo.name} ({(trimmedVideoInfo.sizeBytes / (1024 * 1024)).toFixed(2)} MB)
+                            Last uploaded clip: {trimmedVideoInfo.name} (
+                            {(trimmedVideoInfo.sizeBytes / (1024 * 1024)).toFixed(2)} MB)
                           </p>
                         )}
                       </div>
@@ -743,12 +850,16 @@ export const DetectPage = () => {
                           <h3 className="text-xl font-bold text-gray-900 tracking-tight">
                             CV Feature Analysis
                           </h3>
-                          <p className="text-sm text-gray-500 font-medium">Detailed Computer Vision auxiliary algorithms</p>
+                          <p className="text-sm text-gray-500 font-medium">
+                            Detailed Computer Vision auxiliary algorithms
+                          </p>
                         </div>
                       </div>
                       <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-100">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">Live Analysis</span>
+                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+                          Live Analysis
+                        </span>
                       </div>
                     </div>
 
@@ -756,10 +867,7 @@ export const DetectPage = () => {
                       {result.cv_analysis.map((feat, idx) => {
                         const score = feat.impact_score || 0;
                         return (
-                          <div
-                            key={idx}
-                            className="relative group transition-all duration-500"
-                          >
+                          <div key={idx} className="relative group transition-all duration-500">
                             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-[2rem] opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500 -z-10" />
                             <div className="h-full bg-gray-50/50 hover:bg-white p-8 rounded-[2rem] border border-gray-100 group-hover:border-blue-200 transition-all duration-500 flex flex-col gap-6 shadow-sm group-hover:shadow-2xl">
                               <div className="flex justify-between items-center">
@@ -800,7 +908,8 @@ export const DetectPage = () => {
                     <div className="mt-8 pt-6 border-t border-gray-50 flex items-center gap-2 text-gray-400">
                       <Info size={14} />
                       <p className="text-[10px] font-medium italic">
-                        These features are extracted using OpenCV and Skimage (FFT, GLCM, etc.) libraries to support the CNN model.
+                        These features are extracted using OpenCV and Skimage (FFT, GLCM, etc.)
+                        libraries to support the CNN model.
                       </p>
                     </div>
                   </div>
@@ -880,7 +989,13 @@ const ResultDisplay = ({ result, onClear }) => {
           <div className="flex justify-between items-start">
             <div>
               <h3 className={`text-2xl font-bold mb-1 ${isAI ? 'text-red-900' : 'text-green-900'}`}>
-                {isAI ? (result.isVideo ? 'AI-Generated Video' : 'AI-Generated Content') : (result.isVideo ? 'Authentic Video' : 'Authentic Image')}
+                {isAI
+                  ? result.isVideo
+                    ? 'AI-Generated Video'
+                    : 'AI-Generated Content'
+                  : result.isVideo
+                    ? 'Authentic Video'
+                    : 'Authentic Image'}
               </h3>
               <p className={`${isAI ? 'text-red-700' : 'text-green-700'}`}>
                 Confidence: {confidence.toFixed(2)}%
@@ -888,7 +1003,9 @@ const ResultDisplay = ({ result, onClear }) => {
             </div>
             {result.isVideo && (
               <div className="px-4 py-2 bg-white/50 rounded-xl border border-gray-200 shadow-sm">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Consistency</p>
+                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
+                  Consistency
+                </p>
                 <div className="flex items-center gap-2">
                   <Activity size={14} className="text-blue-500" />
                   <span className="text-sm font-bold text-gray-900">
@@ -915,12 +1032,16 @@ const ResultDisplay = ({ result, onClear }) => {
       {/* Video Specific: Votes/Timeline */}
       {result.isVideo && result.votes && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-           <div className="p-4 bg-white/80 rounded-2xl border border-red-100">
-            <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-1">AI Frames</p>
+          <div className="p-4 bg-white/80 rounded-2xl border border-red-100">
+            <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-1">
+              AI Frames
+            </p>
             <p className="text-2xl font-black text-red-600">{result.votes.AI || 0}</p>
           </div>
           <div className="p-4 bg-white/80 rounded-2xl border border-green-100">
-            <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-1">Real Frames</p>
+            <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-1">
+              Real Frames
+            </p>
             <p className="text-2xl font-black text-green-600">{result.votes.REAL || 0}</p>
           </div>
         </div>
