@@ -189,7 +189,7 @@ export const HistoryPage = () => {
                         className="w-full h-48 object-cover"
                       />
                     )}
-                    
+
                     {getImageUrl(item) === '' && (
                       <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
                         <div className="text-center">
@@ -202,7 +202,6 @@ export const HistoryPage = () => {
                         </div>
                       </div>
                     )}
-
 
                     {/* Content */}
                     <div className="p-4">
@@ -220,10 +219,11 @@ export const HistoryPage = () => {
                               : 'success'
                           }
                         >
-                          {item.detectionType === 'VIDEO' 
-                            ? (item.prediction.includes('AI') ? 'AI VIDEO' : 'REAL VIDEO')
-                            : item.prediction
-                          }
+                          {item.detectionType === 'VIDEO'
+                            ? item.prediction.includes('AI')
+                              ? 'AI VIDEO'
+                              : 'REAL VIDEO'
+                            : item.prediction}
                         </Badge>
                         <span className="text-sm font-semibold text-gray-900">
                           {normalizeConfidenceValue(item.confidence).toFixed(2)}%
@@ -248,7 +248,8 @@ export const HistoryPage = () => {
                           className="w-full"
                           disabled={deletingIds.includes(item.id)}
                         >
-                          <Trash2 size={16} /> {deletingIds.includes(item.id) ? 'Deleting...' : 'Delete'}
+                          <Trash2 size={16} />{' '}
+                          {deletingIds.includes(item.id) ? 'Deleting...' : 'Delete'}
                         </Button>
                       </div>
                     </div>
