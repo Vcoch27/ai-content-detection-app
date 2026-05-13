@@ -6,6 +6,7 @@ import com.aicontentdetection.backend.dto.DetectionHistoryResponseDto;
 import com.aicontentdetection.backend.entity.DetectionRecord;
 import com.aicontentdetection.backend.repository.DetectionRecordRepository;
 import com.aicontentdetection.backend.service.DetectionRecordService;
+import com.aicontentdetection.backend.service.S3StorageService;
 import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -27,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DetectionRecordServiceImpl implements DetectionRecordService {
 
     private final DetectionRecordRepository detectionRecordRepository;
+    private final S3StorageService s3StorageService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -118,6 +120,8 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
         if (!record.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to delete this history item");
         }
+
+        s3StorageService.deleteObject(record.getStorageBucket(), record.getStorageKey());
 
         detectionRecordRepository.delete(record);
     }
