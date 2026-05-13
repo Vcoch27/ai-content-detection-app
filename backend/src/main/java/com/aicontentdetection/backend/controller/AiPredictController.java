@@ -32,7 +32,9 @@ public class AiPredictController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
 
-    private static final long MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    private static final long MAX_IMAGE_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    private static final long MAX_VIDEO_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    private static final String QUOTA_EXCEEDED_MESSAGE = "Storage quota exceeded. Detection completed but this result was not saved to history.";
     private static final String[] ALLOWED_IMAGE_TYPES = {
             MediaType.IMAGE_JPEG_VALUE,
             MediaType.IMAGE_PNG_VALUE,
@@ -83,8 +85,8 @@ public class AiPredictController {
         }
 
         // Validate file size
-        if (file.getSize() > MAX_FILE_SIZE) {
-            log.warn("File too large: {} bytes (max: {} bytes)", file.getSize(), MAX_FILE_SIZE);
+        if (file.getSize() > MAX_IMAGE_FILE_SIZE) {
+            log.warn("File too large: {} bytes (max: {} bytes)", file.getSize(), MAX_IMAGE_FILE_SIZE);
             throw new IllegalArgumentException("File size exceeds maximum allowed size of 20MB");
         }
 
@@ -99,12 +101,17 @@ public class AiPredictController {
 
         AppUser currentUser = resolveAuthenticatedUser(authHeader);
 
-        StoredObject storedObject = s3StorageService.upload(file, "detections/" + currentUser.getId());
-
         // Call AI Gateway Service to get prediction
         AiPredictResponseDto prediction = aiGatewayService.predictImage(file);
 
-        detectionRecordService.savePrediction(currentUser.getId(), file, prediction, storedObject);
+        DetectionRecordService.StorageQuota storageQuota = detectionRecordService.getStorageQuota(currentUser.getId());
+        if (storageQuota.hasSpaceFor(file.getSize())) {
+            StoredObject storedObject = s3StorageService.upload(file, "detections/" + currentUser.getId() + "/images");
+            detectionRecordService.savePrediction(currentUser.getId(), file, prediction, storedObject);
+        } else {
+            log.info("Skipping history save due to storage quota exceeded for userId={}", currentUser.getId());
+            appendQuotaMessage(prediction);
+        }
 
         log.info("Prediction completed for file: {}. Result: {}",
                 file.getOriginalFilename(), prediction.getPrediction());
@@ -128,8 +135,8 @@ public class AiPredictController {
             throw new IllegalArgumentException("File cannot be empty");
         }
 
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException("File size exceeds 100MB");
+        if (file.getSize() > MAX_VIDEO_FILE_SIZE) {
+            throw new IllegalArgumentException("File size exceeds 20MB");
         }
 
         String contentType = file.getContentType();
@@ -141,32 +148,32 @@ public class AiPredictController {
         // We still resolve user for auth check but won't save to DB
         AppUser currentUser = resolveAuthenticatedUser(authHeader);
 
-        // Upload Video to S3
-        StoredObject videoObject = s3StorageService.upload(file, "detections/videos/" + currentUser.getId());
-
         // Call AI Gateway Service (FastAPI)
         AiPredictResponseDto prediction = aiGatewayService.predictVideo(file);
 
-        // Handle Keyframe / Thumbnail
-        StoredObject thumbnailObject = null;
-        if (prediction.getKeyFrameBase64() != null) {
-            try {
-                String base64Data = prediction.getKeyFrameBase64();
-                if (base64Data.contains(",")) {
-                    base64Data = base64Data.split(",")[1];
-                }
-                byte[] decodedBytes = java.util.Base64.getDecoder().decode(base64Data);
-                String thumbFilename = "thumb_" + file.getOriginalFilename() + ".jpg";
-                thumbnailObject = s3StorageService.uploadBytes(decodedBytes, thumbFilename, "image/jpeg", "detections/thumbnails/" + currentUser.getId());
-            } catch (Exception e) {
-                log.error("Failed to upload video thumbnail to S3", e);
-            }
+        DetectionRecordService.StorageQuota storageQuota = detectionRecordService.getStorageQuota(currentUser.getId());
+        if (storageQuota.hasSpaceFor(file.getSize())) {
+            StoredObject videoObject = s3StorageService.upload(file, "detections/" + currentUser.getId() + "/videos");
+            detectionRecordService.saveVideoPrediction(currentUser.getId(), file, prediction, videoObject);
+        } else {
+            log.info("Skipping video history save due to storage quota exceeded for userId={}", currentUser.getId());
+            appendQuotaMessage(prediction);
         }
 
-        // Save Record to History
-        detectionRecordService.saveVideoPrediction(currentUser.getId(), file, prediction, videoObject, thumbnailObject);
-
         return ResponseEntity.ok(prediction);
+    }
+
+    private void appendQuotaMessage(AiPredictResponseDto prediction) {
+        if (prediction == null) {
+            return;
+        }
+
+        if (prediction.getMessage() == null || prediction.getMessage().isBlank()) {
+            prediction.setMessage(QUOTA_EXCEEDED_MESSAGE);
+            return;
+        }
+
+        prediction.setMessage(prediction.getMessage() + " " + QUOTA_EXCEEDED_MESSAGE);
     }
 
     /**
@@ -191,8 +198,12 @@ public class AiPredictController {
         if (contentType == null) {
             return false;
         }
+        String normalizedContentType = contentType.toLowerCase();
+        if (normalizedContentType.startsWith("video/webm")) {
+            return true;
+        }
         for (String allowed : ALLOWED_VIDEO_TYPES) {
-            if (contentType.equalsIgnoreCase(allowed)) {
+            if (normalizedContentType.equalsIgnoreCase(allowed)) {
                 return true;
             }
         }

@@ -2,7 +2,7 @@
  * API client aligned to the backend contract.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const AWS_REGION = import.meta.env.VITE_AWS_REGION || 'us-east-1';
 
 const STORAGE_KEYS = {
@@ -54,7 +54,10 @@ const buildRequestHeaders = ({ json = true, auth = true, headers = {} } = {}) =>
   return finalHeaders;
 };
 
-const buildUrl = (path) => `${API_BASE_URL}${path}`;
+const buildUrl = (path) => {
+  const normalizedPath = path.startsWith('/api') ? path : `/api${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+};
 
 const parseResponse = async (response) => {
   const contentType = response.headers.get('content-type') || '';
@@ -116,6 +119,11 @@ const getPublicDetectionImageUrl = (storageBucket, storageKey) => {
   }
 
   return `https://${bucket}.s3.${AWS_REGION}.amazonaws.com/${encodeURI(storageKey)}`;
+};
+
+export const getPublicDetectionVideoUrl = (storageBucket, storageKey) => {
+  // Same logic as image URL since both are stored in S3
+  return getPublicDetectionImageUrl(storageBucket, storageKey);
 };
 
 export const apiClient = {

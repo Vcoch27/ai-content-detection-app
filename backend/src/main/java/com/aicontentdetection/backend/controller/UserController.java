@@ -148,6 +148,8 @@ public class UserController {
                 .totalDetections(stats.totalDetections())
                 .aiDetections(stats.aiDetections())
                 .realDetections(stats.realDetections())
+                .storageUsedBytes(stats.storageUsedBytes())
+                .storageQuotaBytes(stats.storageQuotaBytes())
                 .build();
 
             return ResponseEntity.ok(response);
