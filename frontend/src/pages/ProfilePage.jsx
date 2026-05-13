@@ -39,7 +39,7 @@ export const ProfilePage = () => {
 
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     const power = Math.min(Math.floor(Math.log(normalized) / Math.log(1024)), units.length - 1);
-    const value = normalized / (1024 ** power);
+    const value = normalized / 1024 ** power;
     return `${value.toFixed(power === 0 ? 0 : 2)} ${units[power]}`;
   };
 
@@ -189,11 +189,15 @@ export const ProfilePage = () => {
                 <div className="flex-1 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Used</span>
-                    <span className="font-semibold text-gray-900">{formatBytes(storageUsedBytes)}</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatBytes(storageUsedBytes)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Limit</span>
-                    <span className="font-semibold text-gray-900">{formatBytes(storageQuotaBytes)}</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatBytes(storageQuotaBytes)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Remaining</span>
