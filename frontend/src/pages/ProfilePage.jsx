@@ -33,6 +33,24 @@ export const ProfilePage = () => {
     window.location.href = '/login';
   };
 
+  const formatBytes = (bytes) => {
+    const normalized = Number(bytes || 0);
+    if (normalized <= 0) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const power = Math.min(Math.floor(Math.log(normalized) / Math.log(1024)), units.length - 1);
+    const value = normalized / (1024 ** power);
+    return `${value.toFixed(power === 0 ? 0 : 2)} ${units[power]}`;
+  };
+
+  const storageUsedBytes = Number(user.storageUsedBytes || 0);
+  const storageQuotaBytes = Math.max(Number(user.storageQuotaBytes || 0), 1);
+  const usageRatio = Math.min(storageUsedBytes / storageQuotaBytes, 1);
+  const usagePercent = Math.round(usageRatio * 100);
+  const circleRadius = 56;
+  const circleCircumference = 2 * Math.PI * circleRadius;
+  const progressOffset = circleCircumference * (1 - usageRatio);
+
   const formatDate = (date) => {
     if (!date) return 'Unknown';
 
@@ -135,6 +153,56 @@ export const ProfilePage = () => {
                 <p className="text-sm text-gray-600">Predictions classified as real</p>
               </div>
               <span className="font-bold text-green-600">{user.realDetections}</span>
+            </div>
+
+            <div className="p-5 bg-gray-50 rounded-lg">
+              <p className="font-semibold text-gray-900 mb-4">Storage quota usage</p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="relative w-36 h-36 mx-auto sm:mx-0">
+                  <svg viewBox="0 0 140 140" className="w-36 h-36 -rotate-90">
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={circleRadius}
+                      stroke="#e5e7eb"
+                      strokeWidth="12"
+                      fill="none"
+                    />
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r={circleRadius}
+                      stroke={usagePercent >= 90 ? '#dc2626' : '#2563eb'}
+                      strokeWidth="12"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={circleCircumference}
+                      strokeDashoffset={progressOffset}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold text-gray-900">{usagePercent}%</span>
+                    <span className="text-xs text-gray-500">USED</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Used</span>
+                    <span className="font-semibold text-gray-900">{formatBytes(storageUsedBytes)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Limit</span>
+                    <span className="font-semibold text-gray-900">{formatBytes(storageQuotaBytes)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Remaining</span>
+                    <span className="font-semibold text-gray-900">
+                      {formatBytes(Math.max(storageQuotaBytes - storageUsedBytes, 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </Card>

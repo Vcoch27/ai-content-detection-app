@@ -40,6 +40,10 @@ public class AppUser extends BaseTimestampEntity {
     @Column(name = "avatar_key", length = 512)
     private String avatarKey;
 
+    @Builder.Default
+    @Column(name = "storage_quota_bytes")
+    private Long storageQuotaBytes = 104857600L;
+
     @Column(nullable = false, length = 50)
     private String role = "USER";
 }

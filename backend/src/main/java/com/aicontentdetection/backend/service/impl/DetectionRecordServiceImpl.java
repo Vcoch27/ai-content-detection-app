@@ -4,11 +4,13 @@ import com.aicontentdetection.backend.dto.AiPredictResponseDto;
 import com.aicontentdetection.backend.dto.DetectionHistoryItemDto;
 import com.aicontentdetection.backend.dto.DetectionHistoryResponseDto;
 import com.aicontentdetection.backend.entity.DetectionRecord;
+import com.aicontentdetection.backend.repository.AppUserRepository;
 import com.aicontentdetection.backend.repository.DetectionRecordRepository;
 import com.aicontentdetection.backend.service.DetectionRecordService;
 import com.aicontentdetection.backend.service.S3StorageService;
 import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,8 +30,12 @@ import lombok.extern.slf4j.Slf4j;
 public class DetectionRecordServiceImpl implements DetectionRecordService {
 
     private final DetectionRecordRepository detectionRecordRepository;
+    private final AppUserRepository appUserRepository;
     private final S3StorageService s3StorageService;
     private final ObjectMapper objectMapper;
+
+    @Value("${storage.quota.default-bytes:104857600}")
+    private long defaultStorageQuotaBytes;
 
     @Override
     public DetectionRecord savePrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject storedObject) {
@@ -127,11 +133,26 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
     }
 
     @Override
+    public StorageQuota getStorageQuota(Long userId) {
+        long usedBytes = detectionRecordRepository.sumStoredFileSizeByUserId(userId);
+        long quotaBytes = resolveUserQuotaBytes(userId);
+        return new StorageQuota(usedBytes, quotaBytes);
+    }
+
+    @Override
     public DetectionStats getStats(Long userId) {
         long totalDetections = detectionRecordRepository.countByUserId(userId);
         long aiDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "AI-GENERATED");
         long realDetections = detectionRecordRepository.countByUserIdAndPredictionIgnoreCase(userId, "REAL-IMAGE");
+        long storageUsedBytes = detectionRecordRepository.sumStoredFileSizeByUserId(userId);
+        long storageQuotaBytes = resolveUserQuotaBytes(userId);
 
-        return new DetectionStats(totalDetections, aiDetections, realDetections);
+        return new DetectionStats(totalDetections, aiDetections, realDetections, storageUsedBytes, storageQuotaBytes);
+    }
+
+    private long resolveUserQuotaBytes(Long userId) {
+        return appUserRepository.findById(userId)
+                .map(user -> user.getStorageQuotaBytes() != null ? user.getStorageQuotaBytes() : defaultStorageQuotaBytes)
+                .orElse(defaultStorageQuotaBytes);
     }
 }

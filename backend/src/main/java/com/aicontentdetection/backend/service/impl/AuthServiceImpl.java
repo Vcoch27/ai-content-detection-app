@@ -6,6 +6,7 @@ import com.aicontentdetection.backend.service.AuthService;
 import com.aicontentdetection.backend.util.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
@@ -25,6 +26,9 @@ public class AuthServiceImpl implements AuthService {
 
     private final AppUserRepository appUserRepository;
     private final JwtTokenProvider jwtTokenProvider;
+
+    @Value("${storage.quota.default-bytes:104857600}")
+    private long defaultStorageQuotaBytes;
 
     @Override
     public AppUser authenticate(String email, String password) {
@@ -77,6 +81,7 @@ public class AuthServiceImpl implements AuthService {
                     .passwordHash(password)
                     .avatarBucket(DEFAULT_AVATAR_BUCKET)
                     .avatarKey(DEFAULT_AVATAR_KEY)
+                    .storageQuotaBytes(defaultStorageQuotaBytes)
                     .role("USER")
                     .build();
 

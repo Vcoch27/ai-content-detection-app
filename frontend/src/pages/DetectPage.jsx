@@ -1,10 +1,91 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Upload, AlertCircle, CheckCircle2, Zap, Sparkles, Eye, Sliders, Info, Cpu, BarChart3, Video, Activity } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { apiClient, handleApiError } from '../utils/api';
+
+const VIDEO_TRIM_SECONDS = 5;
+const MAX_VIDEO_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+const trimVideoSegment = async (sourceFile, startSeconds, durationSeconds = VIDEO_TRIM_SECONDS) => {
+  const sourceUrl = URL.createObjectURL(sourceFile);
+  const videoEl = document.createElement('video');
+  videoEl.preload = 'auto';
+  videoEl.src = sourceUrl;
+  videoEl.muted = true;
+  videoEl.playsInline = true;
+
+  try {
+    await new Promise((resolve, reject) => {
+      videoEl.onloadedmetadata = resolve;
+      videoEl.onerror = () => reject(new Error('Failed to read video metadata'));
+    });
+
+    const captureStream = videoEl.captureStream || videoEl.mozCaptureStream;
+    if (!captureStream) {
+      throw new Error('Browser does not support in-browser video trimming. Please use Chrome or Edge.');
+    }
+
+    const stream = captureStream.call(videoEl);
+    const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    const selectedMimeType = mimeCandidates.find((type) => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+    const recordedChunks = [];
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordedChunks.push(event.data);
+      }
+    };
+
+    const safeStart = Math.max(0, Math.min(startSeconds, Math.max(videoEl.duration - 0.1, 0)));
+    const clipEnd = Math.min(videoEl.duration, safeStart + durationSeconds);
+    const recordDurationMs = Math.max(500, Math.round((clipEnd - safeStart) * 1000));
+
+    await new Promise((resolve, reject) => {
+      let stopTimer;
+
+      mediaRecorder.onerror = () => reject(new Error('Failed while recording trimmed clip'));
+      mediaRecorder.onstop = () => {
+        if (stopTimer) {
+          clearTimeout(stopTimer);
+        }
+        resolve();
+      };
+
+      videoEl.currentTime = safeStart;
+      videoEl.onseeked = async () => {
+        mediaRecorder.start();
+        try {
+          await videoEl.play();
+        } catch (error) {
+          reject(new Error('Unable to play video for trimming'));
+          return;
+        }
+
+        stopTimer = setTimeout(() => {
+          videoEl.pause();
+          if (mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+        }, recordDurationMs);
+      };
+    });
+
+    const trimmedBlob = new Blob(recordedChunks, { type: selectedMimeType });
+    if (trimmedBlob.size === 0) {
+      throw new Error('Trimmed video is empty. Please choose a different segment.');
+    }
+
+    const baseName = (sourceFile.name || 'trimmed-video').replace(/\.[^.]+$/, '');
+    return new File([trimmedBlob], `${baseName}-trimmed.webm`, { type: selectedMimeType });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+    videoEl.remove();
+  }
+};
 
 /**
  * DetectPage - Main image detection page
@@ -14,6 +95,9 @@ export const DetectPage = () => {
   const [selectedVideoFile, setSelectedVideoFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [videoPreview, setVideoPreview] = useState(null);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [trimmedVideoInfo, setTrimmedVideoInfo] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -23,6 +107,15 @@ export const DetectPage = () => {
   const canDetectFromUrl = false;
 
   const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
+  const maxTrimStart = useMemo(() => Math.max(videoDuration - VIDEO_TRIM_SECONDS, 0), [videoDuration]);
+
+  useEffect(() => {
+    return () => {
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
+    };
+  }, [videoPreview]);
 
   // Handle file upload
   const handleFileChange = (e) => {
@@ -52,19 +145,24 @@ export const DetectPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 100 * 1024 * 1024) {
-      setError('Video file size must be less than 100MB');
-      return;
-    }
-
     if (!file.type.startsWith('video/')) {
       setError('Please upload a video file');
       return;
     }
 
     setError(null);
+    setResult(null);
+    setPreview(null);
     setSelectedVideoFile(file);
-    setVideoPreview(URL.createObjectURL(file));
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setTrimmedVideoInfo(null);
+    setVideoPreview((currentPreview) => {
+      if (currentPreview) {
+        URL.revokeObjectURL(currentPreview);
+      }
+      return URL.createObjectURL(file);
+    });
   };
 
   const triggerFileInput = () => {
@@ -129,7 +227,16 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      const response = await apiClient.detectVideo(selectedVideoFile);
+      const trimmedFile = await trimVideoSegment(selectedVideoFile, videoTrimStart, VIDEO_TRIM_SECONDS);
+      if (trimmedFile.size > MAX_VIDEO_UPLOAD_BYTES) {
+        throw new Error('Trimmed video segment exceeds 20MB. Please choose a shorter or lower-resolution segment.');
+      }
+
+      const response = await apiClient.detectVideo(trimmedFile);
+      setTrimmedVideoInfo({
+        name: trimmedFile.name,
+        sizeBytes: trimmedFile.size,
+      });
       setResult({
         ...response,
         isVideo: true,
@@ -153,9 +260,17 @@ export const DetectPage = () => {
 
   const clearResult = () => {
     setPreview(null);
-    setVideoPreview(null);
+    setVideoPreview((currentPreview) => {
+      if (currentPreview) {
+        URL.revokeObjectURL(currentPreview);
+      }
+      return null;
+    });
     setSelectedFile(null);
     setSelectedVideoFile(null);
+    setVideoDuration(0);
+    setVideoTrimStart(0);
+    setTrimmedVideoInfo(null);
     setImageUrl('');
     setResult(null);
     setError(null);
@@ -194,6 +309,9 @@ export const DetectPage = () => {
                 onClick={() => {
                   if (activeTab !== 'video') {
                     clearResult();
+                    setVideoDuration(0);
+                    setVideoTrimStart(0);
+                    setTrimmedVideoInfo(null);
                     setActiveTab('video');
                   }
                 }}
@@ -403,6 +521,11 @@ export const DetectPage = () => {
                           <video
                             src={videoPreview}
                             controls
+                            onLoadedMetadata={(event) => {
+                              const duration = Number(event.currentTarget.duration || 0);
+                              setVideoDuration(duration);
+                              setVideoTrimStart(0);
+                            }}
                             className="max-w-full max-h-full"
                           />
                         </div>
@@ -498,6 +621,34 @@ export const DetectPage = () => {
                         </Button>
                       )}
                     </div>
+                    {!result && (
+                      <div className="px-6 pb-6 space-y-3">
+                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-100 text-sm text-purple-800">
+                          Only a {VIDEO_TRIM_SECONDS}-second clip is sent for AI detection. Backend accepts clips up to 20MB.
+                        </div>
+                        {videoDuration > 0 && (
+                          <>
+                            <label className="block text-sm font-semibold text-gray-700">
+                              Clip start time: {videoTrimStart.toFixed(1)}s - {(videoTrimStart + VIDEO_TRIM_SECONDS).toFixed(1)}s
+                            </label>
+                            <input
+                              type="range"
+                              min="0"
+                              max={maxTrimStart}
+                              step="0.1"
+                              value={videoTrimStart}
+                              onChange={(event) => setVideoTrimStart(Number(event.target.value))}
+                              className="w-full"
+                            />
+                          </>
+                        )}
+                        {trimmedVideoInfo && (
+                          <p className="text-xs text-gray-500">
+                            Last uploaded clip: {trimmedVideoInfo.name} ({(trimmedVideoInfo.sizeBytes / (1024 * 1024)).toFixed(2)} MB)
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 )}
               </>
