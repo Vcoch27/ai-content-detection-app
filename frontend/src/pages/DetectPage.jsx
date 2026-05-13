@@ -19,10 +19,11 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { apiClient, handleApiError } from '../utils/api';
 
-const VIDEO_TRIM_SECONDS = 5;
+const VIDEO_TRIM_MIN_SECONDS = 3;
+const VIDEO_TRIM_MAX_SECONDS = 10;
 const MAX_VIDEO_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-const trimVideoSegment = async (sourceFile, startSeconds, durationSeconds = VIDEO_TRIM_SECONDS) => {
+const trimVideoSegment = async (sourceFile, startSeconds, endSeconds) => {
   const sourceUrl = URL.createObjectURL(sourceFile);
   const videoEl = document.createElement('video');
   videoEl.preload = 'auto';
@@ -57,7 +58,11 @@ const trimVideoSegment = async (sourceFile, startSeconds, durationSeconds = VIDE
     };
 
     const safeStart = Math.max(0, Math.min(startSeconds, Math.max(videoEl.duration - 0.1, 0)));
-    const clipEnd = Math.min(videoEl.duration, safeStart + durationSeconds);
+    const safeEnd = Math.max(
+      safeStart + VIDEO_TRIM_MIN_SECONDS,
+      Math.min(endSeconds, videoEl.duration)
+    );
+    const clipEnd = Math.min(videoEl.duration, safeEnd);
     const recordDurationMs = Math.max(500, Math.round((clipEnd - safeStart) * 1000));
 
     await new Promise((resolve, reject) => {
@@ -113,6 +118,7 @@ export const DetectPage = () => {
   const [videoPreview, setVideoPreview] = useState(null);
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoTrimStart, setVideoTrimStart] = useState(0);
+  const [videoTrimEnd, setVideoTrimEnd] = useState(VIDEO_TRIM_MIN_SECONDS);
   const [trimmedVideoInfo, setTrimmedVideoInfo] = useState(null);
   const [imageUrl, setImageUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -126,18 +132,21 @@ export const DetectPage = () => {
 
   const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
   const maxTrimStart = useMemo(
-    () => Math.max(videoDuration - VIDEO_TRIM_SECONDS, 0),
+    () => Math.max(videoDuration - VIDEO_TRIM_MIN_SECONDS, 0),
     [videoDuration]
   );
 
-  const syncVideoPreviewToTrim = (startSeconds) => {
+  const syncVideoPreviewToTrim = (startSeconds, endSeconds = videoTrimEnd) => {
     const player = videoPlayerRef.current;
     if (!player || !Number.isFinite(player.duration) || player.duration <= 0) {
       return;
     }
 
     const safeStart = Math.max(0, Math.min(startSeconds, Math.max(player.duration - 0.1, 0)));
-    const loopEnd = Math.min(player.duration, safeStart + VIDEO_TRIM_SECONDS);
+    const loopEnd = Math.min(
+      player.duration,
+      Math.max(endSeconds, safeStart + VIDEO_TRIM_MIN_SECONDS)
+    );
 
     videoLoopEndRef.current = loopEnd;
     player.currentTime = safeStart;
@@ -197,6 +206,7 @@ export const DetectPage = () => {
     setSelectedVideoFile(file);
     setVideoDuration(0);
     setVideoTrimStart(0);
+    setVideoTrimEnd(VIDEO_TRIM_MIN_SECONDS);
     setTrimmedVideoInfo(null);
     videoLoopEndRef.current = 0;
     setVideoPreview((currentPreview) => {
@@ -269,11 +279,7 @@ export const DetectPage = () => {
     setError(null);
 
     try {
-      const trimmedFile = await trimVideoSegment(
-        selectedVideoFile,
-        videoTrimStart,
-        VIDEO_TRIM_SECONDS
-      );
+      const trimmedFile = await trimVideoSegment(selectedVideoFile, videoTrimStart, videoTrimEnd);
       if (trimmedFile.size > MAX_VIDEO_UPLOAD_BYTES) {
         throw new Error(
           'Trimmed video segment exceeds 20MB. Please choose a shorter or lower-resolution segment.'
@@ -318,6 +324,7 @@ export const DetectPage = () => {
     setSelectedVideoFile(null);
     setVideoDuration(0);
     setVideoTrimStart(0);
+    setVideoTrimEnd(VIDEO_TRIM_MIN_SECONDS);
     setTrimmedVideoInfo(null);
     videoLoopEndRef.current = 0;
     setImageUrl('');
@@ -327,9 +334,9 @@ export const DetectPage = () => {
 
   useEffect(() => {
     if (activeTab === 'video' && selectedVideoFile && videoDuration > 0) {
-      syncVideoPreviewToTrim(videoTrimStart);
+      syncVideoPreviewToTrim(videoTrimStart, videoTrimEnd);
     }
-  }, [activeTab, selectedVideoFile, videoDuration, videoTrimStart]);
+  }, [activeTab, selectedVideoFile, videoDuration, videoTrimStart, videoTrimEnd]);
 
   return (
     <MainLayout>
@@ -366,6 +373,7 @@ export const DetectPage = () => {
                     clearResult();
                     setVideoDuration(0);
                     setVideoTrimStart(0);
+                    setVideoTrimEnd(VIDEO_TRIM_MIN_SECONDS);
                     setTrimmedVideoInfo(null);
                     setActiveTab('video');
                   }
@@ -591,12 +599,16 @@ export const DetectPage = () => {
                               const duration = Number(event.currentTarget.duration || 0);
                               setVideoDuration(duration);
                               setVideoTrimStart(0);
-                              videoLoopEndRef.current = Math.min(duration, VIDEO_TRIM_SECONDS);
+                              setVideoTrimEnd(Math.min(duration, VIDEO_TRIM_MIN_SECONDS));
+                              videoLoopEndRef.current = Math.min(duration, VIDEO_TRIM_MIN_SECONDS);
                               event.currentTarget.currentTime = 0;
                             }}
                             onTimeUpdate={(event) => {
                               const player = event.currentTarget;
-                              if (videoLoopEndRef.current > 0 && player.currentTime >= videoLoopEndRef.current) {
+                              if (
+                                videoLoopEndRef.current > 0 &&
+                                player.currentTime >= videoLoopEndRef.current
+                              ) {
                                 player.currentTime = videoTrimStart;
                                 const playPromise = player.play();
                                 if (playPromise && typeof playPromise.catch === 'function') {
@@ -608,7 +620,10 @@ export const DetectPage = () => {
                             }}
                             onSeeked={(event) => {
                               const player = event.currentTarget;
-                              if (player.currentTime < videoTrimStart || player.currentTime >= videoLoopEndRef.current) {
+                              if (
+                                player.currentTime < videoTrimStart ||
+                                player.currentTime >= videoLoopEndRef.current
+                              ) {
                                 player.currentTime = videoTrimStart;
                               }
                             }}
@@ -724,14 +739,14 @@ export const DetectPage = () => {
                     {!result && (
                       <div className="px-6 pb-6 space-y-3">
                         <div className="p-3 rounded-lg bg-purple-50 border border-purple-100 text-sm text-purple-800">
-                          Only a {VIDEO_TRIM_SECONDS}-second clip is sent for AI detection. Backend
-                          accepts clips up to 20MB.
+                          Choose a clip between {VIDEO_TRIM_MIN_SECONDS} and{' '}
+                          {VIDEO_TRIM_MAX_SECONDS} seconds. Only the selected clip is sent for AI
+                          detection. Backend accepts clips up to 20MB.
                         </div>
                         {videoDuration > 0 && (
                           <>
                             <label className="block text-sm font-semibold text-gray-700">
-                              Clip start time: {videoTrimStart.toFixed(1)}s -{' '}
-                              {(videoTrimStart + VIDEO_TRIM_SECONDS).toFixed(1)}s
+                              Clip range: {videoTrimStart.toFixed(1)}s - {videoTrimEnd.toFixed(1)}s
                             </label>
                             <input
                               type="range"
@@ -741,11 +756,37 @@ export const DetectPage = () => {
                               value={videoTrimStart}
                               onChange={(event) => {
                                 const nextStart = Number(event.target.value);
+                                const maxAllowedEnd = Math.min(
+                                  nextStart + VIDEO_TRIM_MAX_SECONDS,
+                                  videoDuration
+                                );
+                                const nextEnd = Math.max(
+                                  Math.min(videoTrimEnd, maxAllowedEnd),
+                                  nextStart + VIDEO_TRIM_MIN_SECONDS
+                                );
                                 setVideoTrimStart(nextStart);
-                                syncVideoPreviewToTrim(nextStart);
+                                setVideoTrimEnd(nextEnd);
+                                syncVideoPreviewToTrim(nextStart, nextEnd);
                               }}
                               className="w-full"
                             />
+                            <input
+                              type="range"
+                              min={Math.min(videoTrimStart + VIDEO_TRIM_MIN_SECONDS, videoDuration)}
+                              max={Math.min(videoTrimStart + VIDEO_TRIM_MAX_SECONDS, videoDuration)}
+                              step="0.1"
+                              value={videoTrimEnd}
+                              onChange={(event) => {
+                                const nextEnd = Number(event.target.value);
+                                setVideoTrimEnd(nextEnd);
+                                syncVideoPreviewToTrim(videoTrimStart, nextEnd);
+                              }}
+                              className="w-full"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <span>Min 5s</span>
+                              <span>Max 10s</span>
+                            </div>
                           </>
                         )}
                         {trimmedVideoInfo && (

@@ -198,8 +198,12 @@ public class AiPredictController {
         if (contentType == null) {
             return false;
         }
+        String normalizedContentType = contentType.toLowerCase();
+        if (normalizedContentType.startsWith("video/webm")) {
+            return true;
+        }
         for (String allowed : ALLOWED_VIDEO_TYPES) {
-            if (contentType.equalsIgnoreCase(allowed)) {
+            if (normalizedContentType.equalsIgnoreCase(allowed)) {
                 return true;
             }
         }
