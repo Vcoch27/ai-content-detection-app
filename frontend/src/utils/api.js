@@ -121,12 +121,29 @@ const getPublicDetectionImageUrl = (storageBucket, storageKey) => {
   return `https://${bucket}.s3.${AWS_REGION}.amazonaws.com/${encodeURI(storageKey)}`;
 };
 
+export const getPublicDetectionVideoUrl = (storageBucket, storageKey) => {
+  // Same logic as image URL since both are stored in S3
+  return getPublicDetectionImageUrl(storageBucket, storageKey);
+};
+
 export const apiClient = {
   detectImage: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
     return request('/predict', {
+      method: 'POST',
+      auth: true,
+      json: false,
+      body: formData,
+    });
+  },
+
+  detectVideo: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return request('/predict-video', {
       method: 'POST',
       auth: true,
       json: false,

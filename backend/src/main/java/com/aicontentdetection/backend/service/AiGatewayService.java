@@ -27,4 +27,13 @@ public interface AiGatewayService {
      * @throws com.aicontentdetection.backend.exception.AiServiceException if communication fails
      */
     AiPredictResponseDto predictImageBytes(byte[] imageBytes, String filename);
+
+    /**
+     * Send video to FastAPI /predict-video endpoint and get prediction result.
+     *
+     * @param videoFile the video file to analyze
+     * @return prediction response from AI service
+     * @throws com.aicontentdetection.backend.exception.AiServiceException if communication fails
+     */
+    AiPredictResponseDto predictVideo(MultipartFile videoFile);
 }

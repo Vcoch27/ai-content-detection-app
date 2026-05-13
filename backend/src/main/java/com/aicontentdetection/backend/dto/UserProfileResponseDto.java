@@ -21,4 +21,6 @@ public class UserProfileResponseDto {
     private long totalDetections;
     private long aiDetections;
     private long realDetections;
+    private long storageUsedBytes;
+    private long storageQuotaBytes;
 }
