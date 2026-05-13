@@ -99,7 +99,7 @@ public class AiPredictController {
 
         AppUser currentUser = resolveAuthenticatedUser(authHeader);
 
-        StoredObject storedObject = s3StorageService.upload(file, "detections/" + currentUser.getId());
+        StoredObject storedObject = s3StorageService.upload(file, "detections/" + currentUser.getId() + "/images");
 
         // Call AI Gateway Service to get prediction
         AiPredictResponseDto prediction = aiGatewayService.predictImage(file);
@@ -142,7 +142,7 @@ public class AiPredictController {
         AppUser currentUser = resolveAuthenticatedUser(authHeader);
 
         // Upload Video to S3
-        StoredObject videoObject = s3StorageService.upload(file, "detections/videos/" + currentUser.getId());
+        StoredObject videoObject = s3StorageService.upload(file, "detections/" + currentUser.getId() + "/videos");
 
         // Call AI Gateway Service (FastAPI)
         AiPredictResponseDto prediction = aiGatewayService.predictVideo(file);
@@ -157,7 +157,7 @@ public class AiPredictController {
                 }
                 byte[] decodedBytes = java.util.Base64.getDecoder().decode(base64Data);
                 String thumbFilename = "thumb_" + file.getOriginalFilename() + ".jpg";
-                thumbnailObject = s3StorageService.uploadBytes(decodedBytes, thumbFilename, "image/jpeg", "detections/thumbnails/" + currentUser.getId());
+                thumbnailObject = s3StorageService.uploadBytes(decodedBytes, thumbFilename, "image/jpeg", "detections/" + currentUser.getId() + "/thumbnails");
             } catch (Exception e) {
                 log.error("Failed to upload video thumbnail to S3", e);
             }
