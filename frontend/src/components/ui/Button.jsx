@@ -14,16 +14,17 @@ export const Button = ({
   ...props
 }) => {
   const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 shadow-md',
-    secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
-    ghost: 'bg-transparent text-blue-600 hover:bg-blue-50',
+    primary: 'bg-blue-600 text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700',
+    secondary: 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:bg-slate-50',
+    danger: 'bg-rose-600 text-white shadow-sm shadow-rose-600/20 hover:bg-rose-700',
+    ghost: 'bg-transparent text-blue-700 hover:bg-blue-50',
+    subtle: 'bg-slate-100 text-slate-800 hover:bg-slate-200',
   };
 
   const sizeClasses = {
-    sm: 'px-3 py-2 text-sm rounded-lg',
-    md: 'px-4 py-2.5 text-base rounded-lg',
-    lg: 'px-6 py-3 text-lg rounded-xl',
+    sm: 'h-9 px-3 text-sm rounded-xl',
+    md: 'h-10 px-4 text-sm rounded-xl',
+    lg: 'h-12 px-5 text-base rounded-2xl',
   };
 
   return (
@@ -31,9 +32,11 @@ export const Button = ({
       onClick={onClick}
       disabled={disabled || loading}
       className={`
-        font-semibold transition-all duration-300
+        inline-flex items-center justify-center gap-2 whitespace-nowrap
+        font-semibold transition-all duration-200
+        hover:-translate-y-0.5 hover:shadow-md
         disabled:opacity-50 disabled:cursor-not-allowed
-        flex items-center justify-center gap-2
+        disabled:hover:translate-y-0 disabled:hover:shadow-none
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${disabled || loading ? 'opacity-60' : ''}

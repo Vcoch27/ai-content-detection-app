@@ -1,9 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, LogOut, ShieldCheck, CalendarDays, BarChart3 } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarDays,
+  Database,
+  Image,
+  LogOut,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
+import { Progress } from '../components/ui/Progress';
+import { PageHeader } from '../components/ui/PageHeader';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -43,13 +54,10 @@ export const ProfilePage = () => {
     return `${value.toFixed(power === 0 ? 0 : 2)} ${units[power]}`;
   };
 
-  const storageUsedBytes = Number(user.storageUsedBytes || 0);
-  const storageQuotaBytes = Math.max(Number(user.storageQuotaBytes || 0), 1);
+  const storageUsedBytes = Number(user?.storageUsedBytes || 0);
+  const storageQuotaBytes = Math.max(Number(user?.storageQuotaBytes || 0), 1);
   const usageRatio = Math.min(storageUsedBytes / storageQuotaBytes, 1);
   const usagePercent = Math.round(usageRatio * 100);
-  const circleRadius = 56;
-  const circleCircumference = 2 * Math.PI * circleRadius;
-  const progressOffset = circleCircumference * (1 - usageRatio);
 
   const formatDate = (date) => {
     if (!date) return 'Unknown';
@@ -64,11 +72,10 @@ export const ProfilePage = () => {
   if (isLoading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading profile...</p>
-          </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="h-36 animate-pulse rounded-2xl bg-slate-200/70" />
+          ))}
         </div>
       </MainLayout>
     );
@@ -77,142 +84,151 @@ export const ProfilePage = () => {
   if (error || !user) {
     return (
       <MainLayout>
-        <Card className="p-4 bg-red-50 border border-red-200">
-          <p className="text-red-600">{error || 'User profile not available'}</p>
+        <Card className="border-rose-200 bg-rose-50 p-4">
+          <p className="text-rose-700">{error || 'User profile not available'}</p>
         </Card>
       </MainLayout>
     );
   }
 
+  const stats = [
+    {
+      label: 'Total detections',
+      value: user.totalDetections || 0,
+      icon: BarChart3,
+      color: 'text-blue-700',
+      bg: 'bg-blue-50',
+    },
+    {
+      label: 'AI-generated',
+      value: user.aiDetections || 0,
+      icon: Sparkles,
+      color: 'text-rose-700',
+      bg: 'bg-rose-50',
+    },
+    {
+      label: 'Real images',
+      value: user.realDetections || 0,
+      icon: Image,
+      color: 'text-emerald-700',
+      bg: 'bg-emerald-50',
+    },
+  ];
+
   return (
     <MainLayout>
-      <div className="max-w-3xl">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8">Profile</h1>
+      <PageHeader
+        badge="Account dashboard"
+        title="Profile"
+        subtitle="Review your detection activity, account details, and storage quota."
+      />
 
-        {/* Profile Card */}
-        <Card className="p-8 mb-8">
-          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center mb-8">
-            <Avatar src={user.avatar} size="lg" />
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-gray-900">{user.displayName || user.email}</h2>
-              <div className="flex items-center gap-2 text-gray-600 mt-2">
-                <Mail size={18} />
-                <span>{user.email}</span>
-              </div>
-              <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-500">
-                <span className="inline-flex items-center gap-2">
-                  <ShieldCheck size={16} /> {user.role || 'USER'}
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <CalendarDays size={16} /> Member since {formatDate(user.createdAt)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-gray-200">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600">{user.totalDetections}</p>
-              <p className="text-sm text-gray-600 mt-1">Total Detections</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-red-600">{user.aiDetections}</p>
-              <p className="text-sm text-gray-600 mt-1">AI-Generated</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">{user.realDetections}</p>
-              <p className="text-sm text-gray-600 mt-1">Real Images</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Settings */}
-        <Card className="p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <BarChart3 size={20} /> Detection Summary
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-semibold text-gray-900">Total detections</p>
-                <p className="text-sm text-gray-600">All scans made by this account</p>
-              </div>
-              <span className="font-bold text-blue-600">{user.totalDetections}</span>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-semibold text-gray-900">AI-generated results</p>
-                <p className="text-sm text-gray-600">Predictions classified as AI</p>
-              </div>
-              <span className="font-bold text-red-600">{user.aiDetections}</span>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-semibold text-gray-900">Real-image results</p>
-                <p className="text-sm text-gray-600">Predictions classified as real</p>
-              </div>
-              <span className="font-bold text-green-600">{user.realDetections}</span>
-            </div>
-
-            <div className="p-5 bg-gray-50 rounded-lg">
-              <p className="font-semibold text-gray-900 mb-4">Storage quota usage</p>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="relative w-36 h-36 mx-auto sm:mx-0">
-                  <svg viewBox="0 0 140 140" className="w-36 h-36 -rotate-90">
-                    <circle
-                      cx="70"
-                      cy="70"
-                      r={circleRadius}
-                      stroke="#e5e7eb"
-                      strokeWidth="12"
-                      fill="none"
-                    />
-                    <circle
-                      cx="70"
-                      cy="70"
-                      r={circleRadius}
-                      stroke={usagePercent >= 90 ? '#dc2626' : '#2563eb'}
-                      strokeWidth="12"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={circleCircumference}
-                      strokeDashoffset={progressOffset}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-gray-900">{usagePercent}%</span>
-                    <span className="text-xs text-gray-500">USED</span>
-                  </div>
-                </div>
-
-                <div className="flex-1 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Used</span>
-                    <span className="font-semibold text-gray-900">
-                      {formatBytes(storageUsedBytes)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Limit</span>
-                    <span className="font-semibold text-gray-900">
-                      {formatBytes(storageQuotaBytes)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Remaining</span>
-                    <span className="font-semibold text-gray-900">
-                      {formatBytes(Math.max(storageQuotaBytes - storageUsedBytes, 0))}
-                    </span>
+      <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
+        <div className="space-y-6">
+          <Card className="overflow-hidden p-0">
+            <div className="h-28 bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-900" />
+            <div className="p-6 sm:p-8">
+              <div className="-mt-20 flex flex-col gap-5 sm:flex-row sm:items-end">
+                <Avatar src={user.avatar} size="xl" className="h-28 w-28 ring-4 ring-white" />
+                <div className="min-w-0 flex-1 pt-2 sm:pt-0">
+                  <h2 className="truncate text-3xl font-bold tracking-tight text-slate-950">
+                    {user.displayName || user.email}
+                  </h2>
+                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                    <Mail size={16} />
+                    <span className="truncate">{user.email}</span>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </Card>
 
-        {/* Logout */}
-        <div className="mt-8">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <ShieldCheck size={16} /> Role
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">{user.role || 'USER'}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <CalendarDays size={16} /> Member since
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-950">
+                    {formatDate(user.createdAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {stats.map((stat) => (
+              <Card key={stat.label} className="p-5">
+                <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${stat.bg} ${stat.color}`}>
+                  <stat.icon size={22} />
+                </div>
+                <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                <p className="mt-1 text-sm font-medium text-slate-500">{stat.label}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Database size={22} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-950">Storage quota</h3>
+                <p className="text-sm text-slate-500">Stored media used by detection history.</p>
+              </div>
+            </div>
+
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <p className="text-3xl font-bold text-slate-950">{usagePercent}%</p>
+                <p className="text-sm text-slate-500">used</p>
+              </div>
+              <p className="text-sm font-semibold text-slate-600">
+                {formatBytes(storageUsedBytes)} / {formatBytes(storageQuotaBytes)}
+              </p>
+            </div>
+            <Progress
+              value={usagePercent}
+              indicatorClassName={usagePercent >= 90 ? 'bg-rose-600' : 'bg-blue-600'}
+            />
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="text-slate-500">Remaining</p>
+                <p className="font-bold text-slate-950">
+                  {formatBytes(Math.max(storageQuotaBytes - storageUsedBytes, 0))}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <p className="text-slate-500">Limit</p>
+                <p className="font-bold text-slate-950">{formatBytes(storageQuotaBytes)}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="mb-4 flex items-center gap-2 font-bold text-slate-950">
+              <BarChart3 size={19} /> Detection summary
+            </h3>
+            <div className="space-y-3">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4"
+                >
+                  <span className="text-sm font-medium text-slate-600">{stat.label}</span>
+                  <span className={`text-lg font-bold ${stat.color}`}>{stat.value}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           <Button onClick={handleLogout} variant="danger" className="w-full" size="lg">
             <LogOut size={20} /> Logout
           </Button>

@@ -1,10 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Filter, MessageSquarePlus, ImageOff, Trash2, Video } from 'lucide-react';
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Filter,
+  ImageOff,
+  MessageSquarePlus,
+  PlusCircle,
+  Trash2,
+  Video,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { PageHeader } from '../components/ui/PageHeader';
 import { apiClient } from '../utils/api';
 import { ROUTES } from '../constants/theme';
 
@@ -160,200 +172,201 @@ export const HistoryPage = () => {
     return apiClient.getPublicDetectionImageUrl(item.storageBucket, item.storageKey);
   };
 
+  const filterOptions = [
+    { key: 'all', label: 'All Results', count: pagination.total, icon: Filter },
+    {
+      key: 'ai',
+      label: 'AI-Generated',
+      count: history.filter((i) => (i.prediction || '').toUpperCase().includes('AI')).length,
+      icon: Activity,
+    },
+    {
+      key: 'real',
+      label: 'Real',
+      count: history.filter((i) => (i.prediction || '').toUpperCase().includes('REAL')).length,
+      icon: ImageOff,
+    },
+    {
+      key: 'video',
+      label: 'Video',
+      count: history.filter((i) => i.detectionType === 'VIDEO').length,
+      icon: Video,
+    },
+  ];
+
   return (
     <MainLayout>
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Detection History</h1>
-        <p className="text-gray-600 mb-8">
-          View all your image and video detections and filter by result type
-        </p>
+      <PageHeader
+        badge="Detection archive"
+        title="Detection History"
+        subtitle="Review saved image and video scans, inspect key evidence, and submit feedback."
+      >
+        <Button type="button" onClick={() => navigate(ROUTES.DETECT)} size="sm">
+          <PlusCircle size={17} /> New detection
+        </Button>
+      </PageHeader>
 
-        {/* Loading State */}
-        {isLoading && (
-          <Card className="p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading history...</p>
-          </Card>
-        )}
+      {isLoading && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: HISTORY_PAGE_SIZE }).map((_, index) => (
+            <div key={index} className="h-96 animate-pulse rounded-2xl bg-slate-200/70" />
+          ))}
+        </div>
+      )}
 
-        {/* Error State */}
-        {error && !isLoading && (
-          <Card className="p-4 bg-red-50 border border-red-200">
-            <p className="text-red-600">{error}</p>
-          </Card>
-        )}
+      {error && !isLoading && (
+        <Card className="border-rose-200 bg-rose-50 p-4">
+          <p className="text-sm font-medium text-rose-700">{error}</p>
+        </Card>
+      )}
 
-        {/* Filter Buttons */}
-        {!isLoading && !error && (
-          <>
-            <div className="flex flex-wrap gap-3 mb-8">
-              <button
-                onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                  filter === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                <Filter size={18} /> All Results ({pagination.total})
-              </button>
-              <button
-                onClick={() => setFilter('ai')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                  filter === 'ai'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                AI-Generated (
-                {history.filter((i) => (i.prediction || '').toUpperCase().includes('AI')).length})
-              </button>
-              <button
-                onClick={() => setFilter('real')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                  filter === 'real'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                Real (
-                {history.filter((i) => (i.prediction || '').toUpperCase().includes('REAL')).length})
-              </button>
-              <button
-                onClick={() => setFilter('video')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                  filter === 'video'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                <Video size={18} /> Video (
-                {history.filter((i) => i.detectionType === 'VIDEO').length})
-              </button>
-            </div>
+      {!isLoading && !error && (
+        <>
+          <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+            {filterOptions.map((option) => {
+              const Icon = option.icon;
+              const isActive = filter === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setFilter(option.key)}
+                  className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                  }`}
+                >
+                  <Icon size={17} />
+                  {option.label} ({option.count})
+                </button>
+              );
+            })}
+          </div>
 
-            {/* History List */}
-            {filteredHistory.length === 0 ? (
-              <Card className="p-12 text-center">
-                <p className="text-gray-600 text-lg">No detections found</p>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredHistory.map((item) => {
-                  const prediction = item.prediction || '';
-                  const isVideo = item.detectionType === 'VIDEO';
-                  const isAiPrediction = prediction.toUpperCase().includes('AI');
-                  const cvAnalysis = getCvAnalysis(item).slice(0, 2);
-                  const videoMetrics = getVideoMetrics(item);
-                  const hasVideoMetrics =
-                    isVideo && (videoMetrics.consistency !== null || videoMetrics.votes);
-                  const hasAnalysis = hasVideoMetrics || cvAnalysis.length > 0;
+          {filteredHistory.length === 0 ? (
+            <Card className="p-10 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                <ImageOff size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-950">No detections found</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                There are no records for this filter on the current page. Start a new detection or
+                switch filters.
+              </p>
+              <Button type="button" onClick={() => navigate(ROUTES.DETECT)} className="mx-auto mt-5">
+                <PlusCircle size={18} /> Go to detector
+              </Button>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {filteredHistory.map((item) => {
+                const prediction = item.prediction || '';
+                const isVideo = item.detectionType === 'VIDEO';
+                const isAiPrediction = prediction.toUpperCase().includes('AI');
+                const cvAnalysis = getCvAnalysis(item).slice(0, 2);
+                const videoMetrics = getVideoMetrics(item);
+                const hasVideoMetrics =
+                  isVideo && (videoMetrics.consistency !== null || videoMetrics.votes);
+                const previewUrl = getImageUrl(item);
 
-                  return (
-                  <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    {/* Thumbnail/Preview */}
-                    {isVideo ? (
-                      <video
-                        src={getImageUrl(item)}
-                        className="w-full h-48 object-cover bg-gray-100"
-                        controls
-                      />
-                    ) : (
-                      <img
-                        src={getImageUrl(item)}
-                        alt={item.filename}
-                        className="w-full h-48 object-cover"
-                      />
-                    )}
-
-                    {getImageUrl(item) === '' && (
-                      <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
-                        <div className="text-center">
-                          {isVideo ? (
-                            <Video size={28} className="mx-auto mb-2" />
-                          ) : (
-                            <ImageOff size={28} className="mx-auto mb-2" />
-                          )}
-                          <p className="text-sm">No preview available</p>
+                return (
+                  <Card
+                    key={item.id}
+                    className="group overflow-hidden p-0 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="relative bg-slate-100 p-3">
+                      {previewUrl ? (
+                        isVideo ? (
+                          <video
+                            src={previewUrl}
+                            className="aspect-video w-full rounded-2xl object-cover"
+                            controls
+                          />
+                        ) : (
+                          <img
+                            src={previewUrl}
+                            alt={item.filename}
+                            className="aspect-video w-full rounded-2xl object-cover"
+                          />
+                        )
+                      ) : (
+                        <div className="flex aspect-video w-full items-center justify-center rounded-2xl bg-slate-200 text-slate-500">
+                          {isVideo ? <Video size={28} /> : <ImageOff size={28} />}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Content */}
-                    <div className="p-4">
-                      <p className="text-sm text-gray-600 truncate mb-2">{item.filename}</p>
-                      <p className="text-[11px] text-gray-400 truncate mb-3">
-                        {item.storageBucket ? `${item.storageBucket} / ` : ''}
-                        {item.storageKey || 'No storage key'}
-                      </p>
-
-                      <div className="flex items-center justify-between mb-3">
-                        <Badge
-                          variant={isAiPrediction ? 'error' : 'success'}
-                        >
-                          {isVideo
-                            ? isAiPrediction
-                              ? 'AI VIDEO'
-                              : 'REAL VIDEO'
-                            : prediction}
+                      <div className="absolute left-5 top-5">
+                        <Badge variant={isAiPrediction ? 'error' : 'success'}>
+                          {isVideo ? (isAiPrediction ? 'AI VIDEO' : 'REAL VIDEO') : prediction}
                         </Badge>
-                        <span className="text-sm font-semibold text-gray-900">
-                          {normalizeConfidenceValue(item.confidence).toFixed(2)}%
-                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 p-5">
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 truncate text-sm font-semibold text-slate-950">
+                            {item.filename}
+                          </p>
+                          <span className="shrink-0 text-sm font-bold text-slate-950">
+                            {normalizeConfidenceValue(item.confidence).toFixed(2)}%
+                          </span>
+                        </div>
+                        <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                          <CalendarDays size={14} /> {formatDate(item.timestamp)}
+                        </p>
                       </div>
 
-                      <p className="text-xs text-gray-500 mb-4">{formatDate(item.timestamp)}</p>
-
-                      {hasAnalysis && (
-                        <div className="border-t border-gray-100 pt-3 mb-4 space-y-3">
-                          {hasVideoMetrics && (
-                            <div className="flex items-center justify-between gap-3 text-xs text-gray-600">
-                              <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
-                                <Activity size={14} /> Video metrics
-                              </span>
-                              <span className="text-right">
-                                {videoMetrics.consistency !== null
-                                  ? `${Math.round(videoMetrics.consistency)}% consistent`
-                                  : ''}
-                                {videoMetrics.votes
-                                  ? ` | AI ${videoMetrics.votes.AI || 0} / Real ${
-                                      videoMetrics.votes.REAL || 0
-                                    }`
-                                  : ''}
-                              </span>
-                            </div>
-                          )}
-
-                          {cvAnalysis.length > 0 && (
-                            <div className="space-y-2">
-                              {cvAnalysis.map((feature, index) => (
-                                <div key={`${item.id}-${feature.feature_name || index}`}>
-                                  <div className="flex items-center justify-between gap-3 text-xs">
-                                    <span className="font-semibold text-gray-700 truncate">
-                                      {feature.feature_name || 'CV feature'}
-                                    </span>
-                                    <span className="shrink-0 text-blue-600 font-semibold">
-                                      {formatImpactScore(feature.impact_score)}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-gray-500 truncate">
-                                    {feature.category || 'Analysis'}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
+                      {hasVideoMetrics && (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-700">Video metrics</span>
+                            <span>
+                              {videoMetrics.consistency !== null
+                                ? `${Math.round(videoMetrics.consistency)}% consistent`
+                                : ''}
+                            </span>
+                          </div>
+                          {videoMetrics.votes && (
+                            <p className="mt-1">
+                              AI {videoMetrics.votes.AI || 0} / Real {videoMetrics.votes.REAL || 0}
+                            </p>
                           )}
                         </div>
                       )}
 
-                      <div className="flex gap-2">
+                      {cvAnalysis.length > 0 && (
+                        <div className="space-y-2">
+                          {cvAnalysis.map((feature, index) => (
+                            <div
+                              key={`${item.id}-${feature.feature_name || index}`}
+                              className="rounded-2xl border border-slate-200 bg-white p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3 text-xs">
+                                <span className="truncate font-semibold text-slate-700">
+                                  {feature.feature_name || 'CV feature'}
+                                </span>
+                                <span className="shrink-0 font-bold text-blue-700">
+                                  {formatImpactScore(feature.impact_score)}
+                                </span>
+                              </div>
+                              <p className="mt-1 truncate text-xs text-slate-500">
+                                {feature.category || 'Analysis'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
                         <Button
                           onClick={() => prepareFeedback(item.id)}
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
                           className="w-full"
                         >
-                          <MessageSquarePlus size={16} /> Send feedback
+                          <MessageSquarePlus size={16} /> Feedback
                         </Button>
                         <Button
                           onClick={() => handleDeleteItem(item.id)}
@@ -362,55 +375,54 @@ export const HistoryPage = () => {
                           className="w-full"
                           disabled={deletingIds.includes(item.id)}
                         >
-                          <Trash2 size={16} />{' '}
+                          <Trash2 size={16} />
                           {deletingIds.includes(item.id) ? 'Deleting...' : 'Delete'}
                         </Button>
                       </div>
                     </div>
                   </Card>
-                  );
-                })}
+                );
+              })}
+            </div>
+          )}
+
+          {pagination.total > pagination.limit && (
+            <div className="mt-8 flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
+              <p className="text-sm text-slate-500">
+                Showing {(pagination.page - 1) * pagination.limit + 1}-
+                {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                {pagination.total}
+              </p>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage <= 1 || isLoading}
+                  onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                >
+                  <ArrowLeft size={16} /> Previous
+                </Button>
+
+                <span className="px-3 py-2 text-sm font-semibold text-slate-700">
+                  Page {pagination.page} / {totalPages}
+                </span>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage >= totalPages || isLoading}
+                  onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                >
+                  Next <ArrowRight size={16} />
+                </Button>
               </div>
-            )}
-
-            {pagination.total > pagination.limit && (
-              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <p className="text-sm text-gray-500">
-                  Showing {(pagination.page - 1) * pagination.limit + 1}-
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                  {pagination.total}
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={currentPage <= 1 || isLoading}
-                    onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
-                  >
-                    Previous
-                  </Button>
-
-                  <span className="px-3 py-2 text-sm font-semibold text-gray-700">
-                    Page {pagination.page} / {totalPages}
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={currentPage >= totalPages || isLoading}
-                    onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+            </div>
+          )}
+        </>
+      )}
     </MainLayout>
   );
 };
