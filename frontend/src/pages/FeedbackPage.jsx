@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Send, CheckCircle2 } from 'lucide-react';
+import { Check, CheckCircle2, MessageSquareHeart, Send, X } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
+import { PageHeader } from '../components/ui/PageHeader';
 import { apiClient } from '../utils/api';
 
 /**
@@ -60,104 +62,120 @@ export const FeedbackPage = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Send Feedback</h1>
-        <p className="text-gray-600 mb-8">
-          Help us improve by telling us if our detection was correct or incorrect
-        </p>
+      <PageHeader
+        badge="Feedback loop"
+        title="Send Feedback"
+        subtitle="Tell us whether a detection was correct so the review workflow can keep improving."
+      />
 
-        <Card className="p-8">
+      <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_0.8fr]">
+        <Card className="p-6 sm:p-8">
           {submitted && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-              <CheckCircle2 size={24} className="text-green-600" />
+            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <CheckCircle2 size={24} className="mt-0.5 text-emerald-600" />
               <div>
-                <p className="font-semibold text-green-900">Thank you!</p>
-                <p className="text-green-700 text-sm">
-                  Your feedback helps us improve our AI model
+                <p className="font-semibold text-emerald-900">Thank you.</p>
+                <p className="text-sm text-emerald-700">
+                  Your feedback was submitted and linked to the detection record.
                 </p>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600">{error}</p>
+            <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <p className="text-sm font-medium text-rose-700">{error}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Image ID */}
-            <Input
-              label="Detection ID"
-              placeholder="Enter the numeric detection ID"
-              value={imageId}
-              onChange={(e) => setImageId(e.target.value)}
-              required
-            />
-            <p className="text-xs text-gray-500 -mt-3">
-              You can open this form from History to prefill the detection ID.
-            </p>
-
-            {/* Correct/Incorrect Toggle */}
             <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-4">
+              <Input
+                label="Detection ID"
+                placeholder="Enter the numeric detection ID"
+                value={imageId}
+                onChange={(e) => setImageId(e.target.value)}
+                required
+              />
+              <p className="mt-2 text-sm text-slate-500">
+                Opening feedback from History will prefill this value.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-3 block text-sm font-semibold text-slate-700">
                 Was the result correct?
               </label>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setIsCorrect(true)}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex min-h-20 items-center gap-3 rounded-2xl border p-4 text-left transition-all ${
                     isCorrect
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  ✓ Correct
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+                    <Check size={20} />
+                  </span>
+                  <span>
+                    <span className="block font-semibold">Correct</span>
+                    <span className="text-sm opacity-80">The result matched my review.</span>
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsCorrect(false)}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`flex min-h-20 items-center gap-3 rounded-2xl border p-4 text-left transition-all ${
                     !isCorrect
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'border-rose-300 bg-rose-50 text-rose-800 shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  ✗ Incorrect
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+                    <X size={20} />
+                  </span>
+                  <span>
+                    <span className="block font-semibold">Incorrect</span>
+                    <span className="text-sm opacity-80">The model needs correction.</span>
+                  </span>
                 </button>
               </div>
             </div>
 
-            {/* Message */}
             <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-2">
-                Additional Comments (optional)
-              </label>
-              <textarea
+              <Textarea
+                label="Additional comments"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Tell us more about your feedback..."
+                placeholder="Share useful context such as visual artifacts, source type, or why the result looked wrong."
                 rows={6}
-                className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-blue-500 focus:outline-none resize-none"
+                maxLength={500}
               />
-              <p className="text-xs text-gray-500 mt-2">{message.length}/500</p>
+              <div className="mt-2 flex justify-end text-sm text-slate-500">{message.length}/500</div>
             </div>
 
-            {/* Submit Button */}
-            <Button type="submit" loading={isLoading} disabled={isLoading} className="w-full">
+            <Button type="submit" loading={isLoading} disabled={isLoading} className="w-full" size="lg">
               <Send size={20} /> Submit Feedback
             </Button>
           </form>
         </Card>
 
-        {/* Info Card */}
-        <Card className="mt-8 p-6 bg-blue-50">
-          <h3 className="font-semibold text-gray-900 mb-3">💡 Why your feedback matters</h3>
-          <ul className="space-y-2 text-sm text-gray-700">
-            <li>• Helps us identify and fix false positives/negatives</li>
-            <li>• Improves the AI model accuracy over time</li>
-            <li>• Contributes to the global fight against AI-generated misinformation</li>
+        <Card className="h-fit border-blue-100 bg-blue-50/70 p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+              <MessageSquareHeart size={22} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-950">Why feedback matters</h3>
+              <p className="text-sm text-slate-600">A small note improves future review quality.</p>
+            </div>
+          </div>
+          <ul className="space-y-3 text-sm text-slate-700">
+            <li className="rounded-2xl bg-white/70 p-3">Flags false positives and false negatives.</li>
+            <li className="rounded-2xl bg-white/70 p-3">Creates a clearer audit trail for your detections.</li>
+            <li className="rounded-2xl bg-white/70 p-3">Helps compare model confidence with human judgment.</li>
           </ul>
         </Card>
       </div>

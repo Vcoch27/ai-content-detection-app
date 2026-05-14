@@ -18,9 +18,9 @@ export const Input = ({
   return (
     <div className="flex flex-col gap-2">
       {label && (
-        <label className="text-sm font-semibold text-gray-700">
+        <label className="text-sm font-semibold text-slate-700">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-rose-500 ml-1">*</span>}
         </label>
       )}
       <input
@@ -30,15 +30,15 @@ export const Input = ({
         placeholder={placeholder}
         disabled={disabled}
         className={`
-          px-4 py-2.5 rounded-lg border-2 transition-all
-          ${error ? 'border-red-500' : 'border-gray-200 focus:border-blue-500'}
-          ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white focus:outline-none'}
-          text-gray-900 placeholder-gray-400
+          h-11 px-4 rounded-xl border transition-all shadow-sm
+          ${error ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-blue-500'}
+          ${disabled ? 'bg-slate-100 cursor-not-allowed' : 'bg-white focus:outline-none'}
+          text-slate-900 placeholder-slate-400
           ${className}
         `}
         {...props}
       />
-      {error && <span className="text-sm text-red-500">{error}</span>}
+      {error && <span className="text-sm text-rose-600">{error}</span>}
     </div>
   );
 };

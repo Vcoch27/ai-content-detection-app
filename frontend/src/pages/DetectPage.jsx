@@ -1,22 +1,38 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Upload,
-  AlertCircle,
-  CheckCircle2,
-  Zap,
-  Sparkles,
-  Eye,
-  Sliders,
-  Info,
-  Cpu,
-  BarChart3,
-  Video,
   Activity,
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  Cpu,
+  Eye,
+  FileVideo,
+  Globe2,
+  Image as ImageIcon,
+  Info,
+  Layers3,
+  Lightbulb,
+  PlayCircle,
+  RefreshCw,
+  Scissors,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  Video,
+  Zap,
 } from 'lucide-react';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Badge } from '../components/ui/Badge';
+import { Progress } from '../components/ui/Progress';
+import { PageHeader } from '../components/ui/PageHeader';
+import {
+  formatSeconds,
+  getDefaultClipRange,
+  VideoClipRangeSelector,
+} from '../components/VideoClipRangeSelector';
 import { apiClient, handleApiError } from '../utils/api';
 
 const VIDEO_TRIM_MIN_SECONDS = 5;
@@ -131,10 +147,18 @@ export const DetectPage = () => {
   const videoLoopEndRef = useRef(0);
 
   const selectedFileLabel = useMemo(() => selectedFile?.name || '', [selectedFile]);
-  const maxTrimStart = useMemo(
-    () => Math.max(videoDuration - VIDEO_TRIM_MIN_SECONDS, 0),
-    [videoDuration]
+  const selectedClipDuration = useMemo(
+    () => Math.max(0, videoTrimEnd - videoTrimStart),
+    [videoTrimEnd, videoTrimStart]
   );
+  const isVideoTooShort = videoDuration > 0 && videoDuration < VIDEO_TRIM_MIN_SECONDS;
+  const isVideoClipValid =
+    selectedVideoFile &&
+    videoDuration >= VIDEO_TRIM_MIN_SECONDS &&
+    selectedClipDuration >= VIDEO_TRIM_MIN_SECONDS &&
+    selectedClipDuration <= VIDEO_TRIM_MAX_SECONDS &&
+    videoTrimStart >= 0 &&
+    videoTrimEnd <= videoDuration;
 
   const syncVideoPreviewToTrim = (startSeconds, endSeconds = videoTrimEnd) => {
     const player = videoPlayerRef.current;
@@ -275,6 +299,11 @@ export const DetectPage = () => {
       return;
     }
 
+    if (!isVideoClipValid) {
+      setError('Please choose a valid 5-10 second video clip before analysis.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -338,193 +367,91 @@ export const DetectPage = () => {
     }
   }, [activeTab, selectedVideoFile, videoDuration, videoTrimStart, videoTrimEnd]);
 
+  const handleVideoRangeChange = ([nextStart, nextEnd]) => {
+    setVideoTrimStart(nextStart);
+    setVideoTrimEnd(nextEnd);
+    syncVideoPreviewToTrim(nextStart, nextEnd);
+  };
+
+  const tabs = [
+    { key: 'upload', label: 'Upload Image', icon: ImageIcon },
+    { key: 'video', label: 'Detect Video', icon: FileVideo },
+    { key: 'url', label: 'Image URL', icon: Globe2 },
+  ];
+
+  const selectTab = (tabKey) => {
+    if (activeTab === tabKey) return;
+    clearResult();
+    if (tabKey === 'video') {
+      setVideoDuration(0);
+      setVideoTrimStart(0);
+      setVideoTrimEnd(VIDEO_TRIM_MIN_SECONDS);
+      setTrimmedVideoInfo(null);
+    }
+    setActiveTab(tabKey);
+  };
+
   return (
     <MainLayout>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">AI Content Detector</h1>
-            <p className="text-gray-600 mb-8">
-              Upload an image or provide a URL to detect if it was created by AI
-            </p>
+      <PageHeader
+        badge="Image / Video / URL Analysis"
+        title="AI Content Detector"
+        subtitle="Upload media and inspect model confidence, Grad-CAM focus regions, and computer vision feature evidence."
+      />
 
-            {/* Tabs */}
-            {/* Tabs */}
-            <div className="flex gap-4 mb-6 border-b border-gray-200">
-              <button
-                onClick={() => {
-                  if (activeTab !== 'upload') {
-                    clearResult();
-                    setActiveTab('upload');
-                  }
-                }}
-                className={`py-2 px-4 font-semibold transition-colors ${
-                  activeTab === 'upload'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Upload Image
-              </button>
-              <button
-                onClick={() => {
-                  if (activeTab !== 'video') {
-                    clearResult();
-                    setVideoDuration(0);
-                    setVideoTrimStart(0);
-                    setVideoTrimEnd(VIDEO_TRIM_MIN_SECONDS);
-                    setTrimmedVideoInfo(null);
-                    setActiveTab('video');
-                  }
-                }}
-                className={`py-2 px-4 font-semibold transition-colors ${
-                  activeTab === 'video'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Detect Video
-              </button>
-              <button
-                onClick={() => {
-                  if (activeTab !== 'url') {
-                    clearResult();
-                    setActiveTab('url');
-                  }
-                }}
-                className={`py-2 px-4 font-semibold transition-colors ${
-                  activeTab === 'url'
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Image URL
-              </button>
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0">
+          <Card className="mb-6 p-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => selectTab(tab.key)}
+                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
+          </Card>
 
-            {/* Upload Tab */}
-            {activeTab === 'upload' && (
-              <>
-                {!preview ? (
-                  <Card className="p-8 border-2 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer transition-colors">
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className="flex flex-col items-center justify-center gap-4"
-                    >
-                      <div className="p-4 bg-blue-100 rounded-full">
-                        <Upload size={32} className="text-blue-600" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-gray-900">
-                          Drag and drop your image here
-                        </p>
-                        <p className="text-gray-600">or click to browse</p>
-                      </div>
-                      <input
-                        type="file"
-                        onChange={handleFileChange}
-                        accept="image/*"
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <div className="mt-2">
-                        <Button onClick={triggerFileInput}>Choose File</Button>
-                      </div>
-                      {selectedFileLabel && (
-                        <p className="text-xs text-gray-500">Selected: {selectedFileLabel}</p>
-                      )}
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-gray-200">
-                    <div className="relative group">
-                      <div className="relative bg-gray-100 flex justify-center items-center py-4">
-                        <div className="relative inline-block overflow-hidden rounded-lg shadow-2xl">
-                          <img
-                            src={preview}
-                            alt="Preview"
-                            className="block max-w-full max-h-[70vh] w-auto h-auto"
-                          />
-                          {result?.heatmap_base64 && (
-                            <img
-                              src={result.heatmap_base64}
-                              alt="Heatmap Overlay"
-                              className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-300"
-                              style={{
-                                opacity: heatmapOpacity,
-                                mixBlendMode: 'multiply',
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Grad-CAM Overlay Controls - Only show if heatmap exists */}
-                      {result?.heatmap_base64 && (
-                        <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
-                          <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
-                              <Eye size={24} className="text-blue-400" />
-                            </div>
-                            <div>
-                              <h4 className="text-base font-bold tracking-tight text-blue-50">
-                                Grad-CAM Visual Analysis
-                              </h4>
-                              <p className="text-xs text-gray-400 font-medium">
-                                Move the slider to inspect the regions most impacting the results
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
-                            <div className="flex items-center gap-4 min-w-[180px]">
-                              <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
-                                OPACITY: {Math.round(heatmapOpacity * 100)}%
-                              </span>
-                              <input
-                                type="range"
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                value={heatmapOpacity}
-                                onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
-                                className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Grad-CAM Legend - Only show if heatmap exists */}
-                      {result?.heatmap_base64 && (
-                        <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
-                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                              Red Zone
-                            </div>
-                            <div className="text-[9px] text-gray-500 font-medium">High Impact</div>
-                          </div>
-                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                              Yellow Zone
-                            </div>
-                            <div className="text-[9px] text-gray-500 font-medium">
-                              Medium Impact
-                            </div>
-                          </div>
-                          <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
-                            <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                              Blue Zone
-                            </div>
-                            <div className="text-[9px] text-gray-500 font-medium">Low Impact</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-6 flex gap-3">
+          {activeTab === 'upload' && (
+            <>
+              {!preview ? (
+                <UploadDropzone
+                  icon={Upload}
+                  title="Drag and drop your image here"
+                  subtitle="JPEG, PNG, BMP. Maximum file size 20MB."
+                  inputId="file-upload"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  onClick={triggerFileInput}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  buttonText="Choose Image"
+                  selectedLabel={selectedFileLabel}
+                />
+              ) : (
+                <AnalysisPreview
+                  preview={preview}
+                  result={result}
+                  heatmapOpacity={heatmapOpacity}
+                  setHeatmapOpacity={setHeatmapOpacity}
+                  title="Grad-CAM Visual Analysis"
+                  description="Move the slider to inspect regions that most influenced the result."
+                  actions={
+                    <>
                       <Button onClick={clearResult} variant="secondary" className="flex-1">
                         Change Image
                       </Button>
@@ -537,71 +464,87 @@ export const DetectPage = () => {
                         <Zap size={20} />
                         Detect Now
                       </Button>
-                    </div>
-                  </Card>
-                )}
-              </>
-            )}
+                    </>
+                  }
+                />
+              )}
+            </>
+          )}
 
-            {/* Video Tab */}
-            {activeTab === 'video' && (
-              <>
-                {!videoPreview && !result ? (
-                  <Card className="p-8 border-2 border-dashed border-gray-300 hover:border-blue-500 cursor-pointer transition-colors">
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.classList.remove('bg-blue-50');
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) {
-                          const event = { target: { files: [file] } };
-                          handleVideoFileChange(event);
-                        }
-                      }}
-                      className="flex flex-col items-center justify-center gap-4"
-                    >
-                      <div className="p-4 bg-purple-100 rounded-full">
-                        <Video size={32} className="text-purple-600" />
+          {activeTab === 'video' && (
+            <>
+              {!videoPreview && !result ? (
+                <UploadDropzone
+                  icon={Video}
+                  title="Drag and drop your video here"
+                  subtitle="The selected 5-10 second clip is sent for analysis. Maximum upload 20MB."
+                  inputId="video-upload"
+                  accept="video/*"
+                  onChange={handleVideoFileChange}
+                  onClick={triggerVideoInput}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('bg-blue-50');
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      const event = { target: { files: [file] } };
+                      handleVideoFileChange(event);
+                    }
+                  }}
+                  buttonText="Choose Video"
+                  selectedLabel={selectedVideoFile?.name}
+                />
+              ) : (
+                <Card className="overflow-hidden p-0 shadow-lg">
+                  {!result ? (
+                    <>
+                      <div className="border-b border-slate-200 bg-white p-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                              <PlayCircle size={22} />
+                            </div>
+                            <div className="min-w-0">
+                              <h2 className="text-lg font-bold text-slate-950">Video Preview</h2>
+                              <p className="truncate text-sm text-slate-500">
+                                {selectedVideoFile?.name || 'Selected video'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="primary">
+                              Duration {formatSeconds(videoDuration)}
+                            </Badge>
+                            <Badge variant={isVideoTooShort ? 'error' : 'success'}>
+                              Clip {formatSeconds(selectedClipDuration)}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-gray-900">
-                          Drag and drop your video here
-                        </p>
-                        <p className="text-gray-600">or click to browse</p>
-                      </div>
-                      <input
-                        type="file"
-                        onChange={handleVideoFileChange}
-                        accept="video/*"
-                        className="hidden"
-                        id="video-upload"
-                      />
-                      <div className="mt-2">
-                        <Button onClick={triggerVideoInput}>Choose Video</Button>
-                      </div>
-                      {selectedVideoFile && (
-                        <p className="text-xs text-gray-500">Selected: {selectedVideoFile.name}</p>
-                      )}
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-gray-200">
-                    <div className="relative">
-                      {!result ? (
-                        <div className="bg-gray-950 aspect-video flex items-center justify-center">
+
+                      <div className="bg-slate-950 p-4 sm:p-5">
+                        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl shadow-slate-950/20">
+                          <div className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1 text-xs font-bold text-slate-100 backdrop-blur">
+                            Selected Clip Preview
+                          </div>
                           <video
                             src={videoPreview}
                             controls
                             ref={videoPlayerRef}
                             onLoadedMetadata={(event) => {
                               const duration = Number(event.currentTarget.duration || 0);
+                              const [defaultStart, defaultEnd] = getDefaultClipRange({
+                                duration,
+                                minClipDuration: VIDEO_TRIM_MIN_SECONDS,
+                                maxClipDuration: VIDEO_TRIM_MAX_SECONDS,
+                              });
                               setVideoDuration(duration);
-                              setVideoTrimStart(0);
-                              setVideoTrimEnd(Math.min(duration, VIDEO_TRIM_MIN_SECONDS));
-                              videoLoopEndRef.current = Math.min(duration, VIDEO_TRIM_MIN_SECONDS);
-                              event.currentTarget.currentTime = 0;
+                              setVideoTrimStart(defaultStart);
+                              setVideoTrimEnd(defaultEnd);
+                              videoLoopEndRef.current = defaultEnd;
+                              event.currentTarget.currentTime = defaultStart;
                             }}
                             onTimeUpdate={(event) => {
                               const player = event.currentTarget;
@@ -627,374 +570,262 @@ export const DetectPage = () => {
                                 player.currentTime = videoTrimStart;
                               }
                             }}
-                            className="max-w-full max-h-full"
+                            className="mx-auto aspect-video max-h-[62vh] w-full bg-slate-950 object-contain"
                           />
                         </div>
-                      ) : (
-                        <div className="relative group">
-                          <div className="relative bg-gray-100 flex justify-center items-center py-4">
-                            <div className="relative inline-block overflow-hidden rounded-lg shadow-2xl">
-                              <img
-                                src={preview}
-                                alt="Key Frame Preview"
-                                className="block max-w-full max-h-[70vh] w-auto h-auto"
-                              />
-                              {result?.heatmap_base64 && (
-                                <img
-                                  src={result.heatmap_base64}
-                                  alt="Heatmap Overlay"
-                                  className="absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-300"
-                                  style={{
-                                    opacity: heatmapOpacity,
-                                    mixBlendMode: 'multiply',
-                                  }}
-                                />
-                              )}
-                            </div>
-                          </div>
-                          {/* XAI Controls for Video Keyframe */}
-                          {result?.heatmap_base64 && (
-                            <div className="p-5 bg-gray-950 text-white flex flex-col md:flex-row justify-between items-center gap-6">
-                              <div className="flex items-center gap-4">
-                                <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30 shadow-inner">
-                                  <Eye size={24} className="text-blue-400" />
-                                </div>
-                                <div>
-                                  <h4 className="text-base font-bold tracking-tight text-blue-50">
-                                    Keyframe Analysis
-                                  </h4>
-                                  <p className="text-xs text-gray-400 font-medium">
-                                    Move the slider to inspect impacting regions on the keyframe
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-5 bg-gray-900/90 backdrop-blur-md px-5 py-3 rounded-[1.25rem] border border-white/10 w-full md:w-auto shadow-2xl">
-                                <div className="flex items-center gap-4 min-w-[180px]">
-                                  <span className="text-xs font-black text-blue-400 uppercase tracking-[0.2em]">
-                                    OPACITY: {Math.round(heatmapOpacity * 100)}%
-                                  </span>
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    value={heatmapOpacity}
-                                    onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
-                                    className="w-32 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Grad-CAM Legend for Video - Only show if heatmap exists */}
-                          {result?.heatmap_base64 && (
-                            <div className="grid grid-cols-3 gap-3 p-3 bg-gray-950 border-t border-white/5">
-                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-red-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-red-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                                  Red Zone
-                                </div>
-                                <div className="text-[9px] text-gray-500 font-medium">
-                                  High Impact
-                                </div>
-                              </div>
-                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-yellow-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-yellow-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                                  Yellow Zone
-                                </div>
-                                <div className="text-[9px] text-gray-500 font-medium">
-                                  Medium Impact
-                                </div>
-                              </div>
-                              <div className="bg-gradient-to-br from-gray-900 to-gray-950 p-2.5 rounded-xl border border-blue-500/20 text-center shadow-lg group/legend">
-                                <div className="text-[10px] font-black text-blue-500 uppercase tracking-tighter mb-0.5 group-hover/legend:scale-110 transition-transform">
-                                  Blue Zone
-                                </div>
-                                <div className="text-[9px] text-gray-500 font-medium">
-                                  Low Impact
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-6 flex gap-3">
-                      <Button onClick={clearResult} variant="secondary" className="flex-1">
-                        Change Video
-                      </Button>
-                      {!result && (
-                        <Button
-                          onClick={handleDetectVideo}
-                          loading={isLoading}
-                          disabled={isLoading}
-                          className="flex-1 bg-purple-600 hover:bg-purple-700"
-                        >
-                          <Zap size={20} />
-                          Analyze Video
-                        </Button>
-                      )}
-                    </div>
-                    {!result && (
-                      <div className="px-6 pb-6 space-y-3">
-                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-100 text-sm text-purple-800">
-                          Choose a clip between {VIDEO_TRIM_MIN_SECONDS} and{' '}
-                          {VIDEO_TRIM_MAX_SECONDS} seconds. Only the selected clip is sent for AI
-                          detection. Backend accepts clips up to 20MB.
-                        </div>
-                        {videoDuration > 0 && (
-                          <>
-                            <label className="block text-sm font-semibold text-gray-700">
-                              Clip range: {videoTrimStart.toFixed(1)}s - {videoTrimEnd.toFixed(1)}s
-                            </label>
-                            <input
-                              type="range"
-                              min="0"
-                              max={maxTrimStart}
-                              step="0.1"
-                              value={videoTrimStart}
-                              onChange={(event) => {
-                                const nextStart = Number(event.target.value);
-                                const maxAllowedEnd = Math.min(
-                                  nextStart + VIDEO_TRIM_MAX_SECONDS,
-                                  videoDuration
-                                );
-                                const nextEnd = Math.max(
-                                  Math.min(videoTrimEnd, maxAllowedEnd),
-                                  nextStart + VIDEO_TRIM_MIN_SECONDS
-                                );
-                                setVideoTrimStart(nextStart);
-                                setVideoTrimEnd(nextEnd);
-                                syncVideoPreviewToTrim(nextStart, nextEnd);
-                              }}
-                              className="w-full"
-                            />
-                            <input
-                              type="range"
-                              min={Math.min(videoTrimStart + VIDEO_TRIM_MIN_SECONDS, videoDuration)}
-                              max={Math.min(videoTrimStart + VIDEO_TRIM_MAX_SECONDS, videoDuration)}
-                              step="0.1"
-                              value={videoTrimEnd}
-                              onChange={(event) => {
-                                const nextEnd = Number(event.target.value);
-                                setVideoTrimEnd(nextEnd);
-                                syncVideoPreviewToTrim(videoTrimStart, nextEnd);
-                              }}
-                              className="w-full"
-                            />
-                            <div className="flex justify-between text-xs text-gray-500">
-                              <span>Min 5s</span>
-                              <span>Max 10s</span>
-                            </div>
-                          </>
-                        )}
-                        {trimmedVideoInfo && (
-                          <p className="text-xs text-gray-500">
-                            Last uploaded clip: {trimmedVideoInfo.name} (
-                            {(trimmedVideoInfo.sizeBytes / (1024 * 1024)).toFixed(2)} MB)
-                          </p>
-                        )}
                       </div>
-                    )}
-                  </Card>
-                )}
-              </>
-            )}
-
-            {/* URL Tab */}
-            {activeTab === 'url' && (
-              <>
-                <Card className="p-6">
-                  <div className="space-y-4">
-                    <Input
-                      label="Image URL"
-                      placeholder="https://example.com/image.jpg"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      error={error && activeTab === 'url' ? error : ''}
+                    </>
+                  ) : (
+                    <AnalysisPreview
+                      preview={preview}
+                      result={result}
+                      heatmapOpacity={heatmapOpacity}
+                      setHeatmapOpacity={setHeatmapOpacity}
+                      title="Keyframe Analysis"
+                      description="Inspect the keyframe regions that influenced the video prediction."
                     />
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => {
-                          setPreview(imageUrl);
-                        }}
-                        disabled={!imageUrl.trim()}
-                      >
-                        Preview
-                      </Button>
-                      <Button
-                        onClick={handleDetectFromUrl}
-                        loading={isLoading}
-                        disabled={true}
-                        className="flex-1"
-                      >
-                        <Sparkles size={20} />
-                        Coming soon
-                      </Button>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      URL-based detection is not wired to the backend yet. Upload an image file to
-                      use the current contract.
-                    </p>
-                  </div>
-                </Card>
+                  )}
 
-                {preview && (
-                  <Card className="overflow-hidden mt-4">
+                  <div className="grid gap-3 border-t border-slate-200 p-5 sm:grid-cols-2">
+                    <Button
+                      onClick={clearResult}
+                      variant="secondary"
+                      size="lg"
+                      className="w-full"
+                      aria-label="Change selected video"
+                    >
+                      <RefreshCw size={18} />
+                      Change Video
+                    </Button>
+                    {!result && (
+                      <Button
+                        onClick={handleDetectVideo}
+                        loading={isLoading}
+                        disabled={isLoading || !isVideoClipValid}
+                        size="lg"
+                        className="w-full"
+                        aria-label="Analyze selected video clip"
+                      >
+                        <Zap size={20} />
+                        {isLoading ? 'Analyzing Video' : 'Analyze Video'}
+                      </Button>
+                    )}
+                  </div>
+
+                  {!result && (
+                    <div className="space-y-4 border-t border-slate-100 bg-slate-50/70 p-5">
+                      <div className="grid gap-3 text-sm md:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-bold uppercase text-slate-500">File name</p>
+                          <p className="mt-1 truncate font-semibold text-slate-900">
+                            {selectedVideoFile?.name || 'Video file'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-bold uppercase text-slate-500">Range</p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {formatSeconds(videoTrimStart)} - {formatSeconds(videoTrimEnd)}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-bold uppercase text-slate-500">Clip sent</p>
+                          <p className="mt-1 inline-flex items-center gap-2 font-semibold text-slate-900">
+                            <Scissors size={16} className="text-blue-600" />
+                            {formatSeconds(selectedClipDuration)}
+                          </p>
+                        </div>
+                      </div>
+                      {videoDuration > 0 && (
+                        <VideoClipRangeSelector
+                          duration={videoDuration}
+                          value={[videoTrimStart, videoTrimEnd]}
+                          onChange={handleVideoRangeChange}
+                          minClipDuration={VIDEO_TRIM_MIN_SECONDS}
+                          maxClipDuration={VIDEO_TRIM_MAX_SECONDS}
+                          step={0.1}
+                          disabled={isLoading}
+                        />
+                      )}
+                      {trimmedVideoInfo && (
+                        <p className="text-xs text-slate-500">
+                          Last uploaded clip: {trimmedVideoInfo.name} (
+                          {(trimmedVideoInfo.sizeBytes / (1024 * 1024)).toFixed(2)} MB)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
+            </>
+          )}
+
+          {activeTab === 'url' && (
+            <>
+              <Card className="p-6">
+                <div className="space-y-4">
+                  <Input
+                    label="Image URL"
+                    placeholder="https://example.com/image.jpg"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    error={error && activeTab === 'url' ? error : ''}
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      onClick={() => {
+                        setPreview(imageUrl);
+                      }}
+                      disabled={!imageUrl.trim()}
+                      variant="secondary"
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      onClick={handleDetectFromUrl}
+                      loading={isLoading}
+                      disabled={!canDetectFromUrl}
+                      className="flex-1"
+                    >
+                      <Sparkles size={20} />
+                      Coming soon
+                    </Button>
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    URL-based detection is not wired to the backend yet. Upload an image file to
+                    use the current contract.
+                  </p>
+                </div>
+              </Card>
+
+              {preview && (
+                <Card className="mt-4 overflow-hidden p-0">
+                  <div className="bg-slate-100 p-4">
                     <img
                       src={preview}
                       alt="Preview"
-                      className="w-full max-h-[60vh] object-contain"
+                      className="mx-auto max-h-[60vh] rounded-2xl object-contain"
                     />
-                    <div className="p-6 flex gap-3">
-                      <Button onClick={clearResult} variant="secondary" className="flex-1">
-                        Clear Preview
-                      </Button>
-                      <Button
-                        onClick={handleDetectFromUrl}
-                        loading={isLoading}
-                        disabled={true}
-                        className="flex-1"
-                      >
-                        <Sparkles size={20} />
-                        Coming soon
-                      </Button>
-                    </div>
-                  </Card>
-                )}
-              </>
-            )}
+                  </div>
+                  <div className="flex flex-col gap-3 border-t border-slate-200 p-5 sm:flex-row">
+                    <Button onClick={clearResult} variant="secondary" className="flex-1">
+                      Clear Preview
+                    </Button>
+                    <Button
+                      onClick={handleDetectFromUrl}
+                      loading={isLoading}
+                      disabled={!canDetectFromUrl}
+                      className="flex-1"
+                    >
+                      <Sparkles size={20} />
+                      Coming soon
+                    </Button>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
 
-            {/* Error Message */}
-            {error && (activeTab === 'upload' || activeTab === 'video') && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <p className="text-red-700">{error}</p>
-              </div>
-            )}
+          {error && (activeTab === 'upload' || activeTab === 'video') && (
+            <div className="mt-4 flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <AlertCircle className="mt-0.5 flex-shrink-0 text-rose-600" size={20} />
+              <p className="text-sm font-medium text-rose-700">{error}</p>
+            </div>
+          )}
 
-            {/* Result and Analysis */}
-            {result && (
-              <div className="mt-8 space-y-8">
-                <ResultDisplay result={result} onClear={clearResult} />
+          {result && (
+            <div className="mt-8 space-y-8">
+              <ResultDisplay result={result} onClear={clearResult} />
 
-                {/* CV Feature Analysis Section */}
-                {result.cv_analysis && result.cv_analysis.length > 0 && (
-                  <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                          <BarChart3 size={24} />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 tracking-tight">
-                            CV Feature Analysis
-                          </h3>
-                          <p className="text-sm text-gray-500 font-medium">
-                            Detailed Computer Vision auxiliary algorithms
-                          </p>
-                        </div>
+              {result.cv_analysis && result.cv_analysis.length > 0 && (
+                <Card className="p-6 sm:p-8">
+                  <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                        <BarChart3 size={24} />
                       </div>
-                      <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-100">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
-                          Live Analysis
-                        </span>
+                      <div>
+                        <h3 className="text-xl font-bold tracking-tight text-slate-950">
+                          CV Feature Analysis
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          Computer vision signals that support the prediction.
+                        </p>
                       </div>
                     </div>
+                    <Badge variant="success">Live Analysis</Badge>
+                  </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {result.cv_analysis.map((feat, idx) => {
-                        const score = feat.impact_score || 0;
-                        return (
-                          <div key={idx} className="relative group transition-all duration-500">
-                            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-[2rem] opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500 -z-10" />
-                            <div className="h-full bg-gray-50/50 hover:bg-white p-8 rounded-[2rem] border border-gray-100 group-hover:border-blue-200 transition-all duration-500 flex flex-col gap-6 shadow-sm group-hover:shadow-2xl">
-                              <div className="flex justify-between items-center">
-                                <span className="px-4 py-1.5 bg-white text-[12px] font-black text-blue-600 rounded-xl shadow-sm uppercase tracking-widest border border-blue-50">
-                                  {feat.category}
-                                </span>
-                                <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl">
-                                  <Cpu size={24} />
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col gap-3">
-                                <h4 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors tracking-tight">
-                                  {feat.feature_name}
-                                </h4>
-                                <div className="flex items-center gap-4 mt-1">
-                                  <div className="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                                      style={{ width: `${score}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-lg font-black text-blue-600">
-                                    {Math.round(score)}%
-                                  </span>
-                                </div>
-                              </div>
-
-                              <p className="text-sm text-gray-600 group-hover:text-gray-700 leading-relaxed font-medium">
-                                {feat.description}
-                              </p>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                    {result.cv_analysis.map((feat, idx) => {
+                      const score = Math.max(0, Math.min(Number(feat.impact_score || 0), 100));
+                      return (
+                        <div
+                          key={idx}
+                          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <Badge variant="primary">{feat.category || 'Feature'}</Badge>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
+                              <Cpu size={20} />
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-gray-50 flex items-center gap-2 text-gray-400">
-                      <Info size={14} />
-                      <p className="text-[10px] font-medium italic">
-                        These features are extracted using OpenCV and Skimage (FFT, GLCM, etc.)
-                        libraries to support the CNN model.
-                      </p>
-                    </div>
+                          <div>
+                            <h4 className="text-base font-bold text-slate-950">
+                              {feat.feature_name}
+                            </h4>
+                            <div className="mt-3 flex items-center gap-3">
+                              <Progress value={score} className="h-2" />
+                              <span className="w-12 text-right text-sm font-bold text-blue-700">
+                                {Math.round(score)}%
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm leading-6 text-slate-600">{feat.description}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+
+                  <div className="mt-6 flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                    <Info size={16} className="mt-0.5 text-slate-400" />
+                    <p>
+                      Feature evidence is extracted from OpenCV and Skimage-style signals and should
+                      be read alongside the model confidence.
+                    </p>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Sidebar - Info */}
-        <aside className="space-y-6">
-          <Card padding="lg">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">How it works</h3>
-            <ol className="space-y-4 text-sm text-gray-600">
-              <li className="flex gap-3">
-                <span className="font-bold text-blue-600">1.</span>
-                <span>Upload an image or provide a URL</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="font-bold text-blue-600">2.</span>
-                <span>Our AI analyzes the image using advanced techniques</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="font-bold text-blue-600">3.</span>
-                <span>Get instant results with confidence percentage</span>
-              </li>
-            </ol>
-          </Card>
-
-          <Card padding="lg" className="bg-gradient-to-br from-blue-50 to-blue-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">💡 Pro Tips</h3>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li>• Clear, high-quality images work best</li>
-              <li>• File size must be under 20MB</li>
-              <li>• Supports JPEG, PNG, and BMP formats</li>
-              <li>• Results are processed in real-time</li>
-            </ul>
-          </Card>
-
-          <Card padding="lg" className="bg-gray-900 text-white">
-            <h3 className="text-lg font-bold mb-3">🚀 About HyperID</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              Powered by advanced machine learning combining CNN feature extraction with computer
-              vision techniques for accurate AI content detection.
+        <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+          <InfoCard
+            icon={Layers3}
+            title="How it works"
+            items={[
+              'Upload an image or video clip.',
+              'HyperID extracts model and CV evidence.',
+              'Review confidence, heatmaps, and feature impact.',
+            ]}
+          />
+          <InfoCard
+            icon={Lightbulb}
+            title="Pro Tips"
+            items={[
+              'Use clear, high-quality media when possible.',
+              'Keep files under 20MB.',
+              'For videos, choose a representative 5-10 second segment.',
+            ]}
+          />
+          <Card className="overflow-hidden bg-slate-950 p-6 text-white">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/30">
+              <ShieldCheck size={24} />
+            </div>
+            <h3 className="text-lg font-bold">About HyperID</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              A detection dashboard combining trained models, Grad-CAM visual evidence, and CV
+              feature analysis for media verification workflows.
             </p>
           </Card>
         </aside>
@@ -1003,112 +834,228 @@ export const DetectPage = () => {
   );
 };
 
+const UploadDropzone = ({
+  icon: Icon,
+  title,
+  subtitle,
+  inputId,
+  accept,
+  onChange,
+  onClick,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  buttonText,
+  selectedLabel,
+}) => (
+  <Card className="border-2 border-dashed border-slate-300 bg-white p-8 transition-all hover:border-blue-400 hover:bg-blue-50/40">
+    <div
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className="flex min-h-80 flex-col items-center justify-center gap-5 rounded-2xl"
+    >
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 shadow-sm">
+        <Icon size={32} />
+      </div>
+      <div className="max-w-md text-center">
+        <p className="text-xl font-bold text-slate-950">{title}</p>
+        <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+      </div>
+      <input type="file" onChange={onChange} accept={accept} className="hidden" id={inputId} />
+      <Button type="button" onClick={onClick}>
+        <Upload size={18} /> {buttonText}
+      </Button>
+      {selectedLabel && (
+        <p className="max-w-full truncate rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+          Selected: {selectedLabel}
+        </p>
+      )}
+    </div>
+  </Card>
+);
+
+const AnalysisPreview = ({
+  preview,
+  result,
+  heatmapOpacity,
+  setHeatmapOpacity,
+  title,
+  description,
+  actions,
+}) => (
+  <Card className="overflow-hidden p-0">
+    <div className="bg-slate-100 p-4">
+      <div className="relative mx-auto inline-block max-w-full overflow-hidden rounded-2xl bg-white shadow-sm">
+        <img src={preview} alt="Preview" className="block max-h-[68vh] max-w-full object-contain" />
+        {result?.heatmap_base64 && (
+          <img
+            src={result.heatmap_base64}
+            alt="Heatmap Overlay"
+            className="absolute left-0 top-0 h-full w-full pointer-events-none transition-opacity duration-300"
+            style={{ opacity: heatmapOpacity, mixBlendMode: 'multiply' }}
+          />
+        )}
+      </div>
+    </div>
+
+    {result?.heatmap_base64 && (
+      <div className="border-t border-slate-200 bg-white p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+              <Eye size={22} />
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-950">{title}</h4>
+              <p className="mt-1 text-sm text-slate-500">{description}</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-2 flex items-center justify-between gap-4 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <span>Overlay opacity</span>
+              <span>{Math.round(heatmapOpacity * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={heatmapOpacity}
+              onChange={(e) => setHeatmapOpacity(parseFloat(e.target.value))}
+              className="w-56 accent-blue-600"
+            />
+          </div>
+        </div>
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <Badge variant="error" className="justify-center py-2">Red Zone: high impact</Badge>
+          <Badge variant="warning" className="justify-center py-2">Yellow Zone: medium impact</Badge>
+          <Badge variant="primary" className="justify-center py-2">Blue Zone: low impact</Badge>
+        </div>
+      </div>
+    )}
+
+    {actions && <div className="flex flex-col gap-3 border-t border-slate-200 p-5 sm:flex-row">{actions}</div>}
+  </Card>
+);
+
+const InfoCard = ({ icon: Icon, title, items }) => (
+  <Card className="p-6">
+    <div className="mb-4 flex items-center gap-3">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+        <Icon size={22} />
+      </div>
+      <h3 className="font-bold text-slate-950">{title}</h3>
+    </div>
+    <ul className="space-y-3 text-sm text-slate-600">
+      {items.map((item) => (
+        <li key={item} className="flex gap-3">
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  </Card>
+);
+
 /**
  * Result Display Component
  */
 const ResultDisplay = ({ result, onClear }) => {
   const isAI = result.prediction?.includes('AI') || result.prediction?.includes('GENERATED');
-  const confidence =
+  const rawConfidence =
     typeof result.confidence === 'string' ? parseFloat(result.confidence) : result.confidence;
+  const confidence = Math.max(0, Math.min(Number(rawConfidence || 0), 100));
+  const theme = isAI
+    ? {
+        label: result.isVideo ? 'AI-Generated Video' : 'AI-Generated Content',
+        border: 'border-rose-200',
+        bg: 'bg-rose-50',
+        text: 'text-rose-700',
+        iconBg: 'bg-rose-100',
+        bar: 'bg-rose-600',
+        icon: AlertCircle,
+      }
+    : {
+        label: result.isVideo ? 'Authentic Video' : 'Authentic Image',
+        border: 'border-emerald-200',
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-700',
+        iconBg: 'bg-emerald-100',
+        bar: 'bg-emerald-600',
+        icon: CheckCircle2,
+      };
+  const StatusIcon = theme.icon;
 
   return (
-    <Card
-      className={`
-        p-8 border-l-8
-        ${isAI ? 'border-l-red-500 bg-red-50' : 'border-l-green-500 bg-green-50'}
-      `}
-    >
-      <div className="flex items-start gap-4 mb-6">
-        <div
-          className={`p-3 rounded-full ${
-            isAI ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-          }`}
-        >
-          {isAI ? <AlertCircle size={32} /> : <CheckCircle2 size={32} />}
-        </div>
-        <div className="flex-1">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className={`text-2xl font-bold mb-1 ${isAI ? 'text-red-900' : 'text-green-900'}`}>
-                {isAI
-                  ? result.isVideo
-                    ? 'AI-Generated Video'
-                    : 'AI-Generated Content'
-                  : result.isVideo
-                    ? 'Authentic Video'
-                    : 'Authentic Image'}
-              </h3>
-              <p className={`${isAI ? 'text-red-700' : 'text-green-700'}`}>
-                Confidence: {confidence.toFixed(2)}%
-              </p>
-            </div>
-            {result.isVideo && (
-              <div className="px-4 py-2 bg-white/50 rounded-xl border border-gray-200 shadow-sm">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
-                  Consistency
-                </p>
-                <div className="flex items-center gap-2">
-                  <Activity size={14} className="text-blue-500" />
-                  <span className="text-sm font-bold text-gray-900">
-                    {typeof result.consistency === 'number' ? Math.round(result.consistency) : 0}%
-                  </span>
-                </div>
-              </div>
-            )}
+    <Card className={`border ${theme.border} ${theme.bg} p-6 sm:p-8`}>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex gap-4">
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${theme.iconBg} ${theme.text}`}>
+            <StatusIcon size={30} />
           </div>
-          {result.message && <p className="mt-2 text-sm text-gray-600">{result.message}</p>}
+          <div>
+            <Badge variant={isAI ? 'error' : 'success'}>{isAI ? 'AI signal detected' : 'Authentic signal'}</Badge>
+            <h3 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">{theme.label}</h3>
+            <p className={`mt-1 text-sm font-medium ${theme.text}`}>
+              Confidence: {confidence.toFixed(2)}%
+            </p>
+            {result.message && <p className="mt-2 text-sm text-slate-600">{result.message}</p>}
+          </div>
         </div>
+
+        {result.isVideo && (
+          <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Consistency</p>
+            <div className="mt-2 flex items-center gap-2">
+              <Activity size={16} className="text-blue-600" />
+              <span className="text-lg font-bold text-slate-950">
+                {typeof result.consistency === 'number' ? Math.round(result.consistency) : 0}%
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Confidence Bar */}
-      <div className="mb-6">
-        <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
-          <div
-            className={`h-full transition-all duration-500 ${isAI ? 'bg-red-500' : 'bg-green-500'}`}
-            style={{ width: `${confidence}%` }}
+      <div className="mt-6">
+        <Progress value={confidence} indicatorClassName={theme.bar} className="h-3 bg-white/70" />
+      </div>
+
+      {result.isVideo && result.votes && (
+        <div className="mt-6 grid grid-cols-2 gap-4">
+          <MetricCard label="AI Frames" value={result.votes.AI || 0} tone="rose" />
+          <MetricCard label="Real Frames" value={result.votes.REAL || 0} tone="emerald" />
+        </div>
+      )}
+
+      {!result.isVideo && (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <MetricCard label="AI Probability" value={`${(result.ai_probability || 0).toFixed(2)}%`} tone="rose" />
+          <MetricCard
+            label="Real Probability"
+            value={`${(result.real_probability || 0).toFixed(2)}%`}
+            tone="emerald"
           />
         </div>
-      </div>
-
-      {/* Video Specific: Votes/Timeline */}
-      {result.isVideo && result.votes && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="p-4 bg-white/80 rounded-2xl border border-red-100">
-            <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-1">
-              AI Frames
-            </p>
-            <p className="text-2xl font-black text-red-600">{result.votes.AI || 0}</p>
-          </div>
-          <div className="p-4 bg-white/80 rounded-2xl border border-green-100">
-            <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-1">
-              Real Frames
-            </p>
-            <p className="text-2xl font-black text-green-600">{result.votes.REAL || 0}</p>
-          </div>
-        </div>
       )}
 
-      {/* Details */}
-      {!result.isVideo && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="p-3 bg-white rounded-lg">
-            <p className="text-gray-600 text-sm">AI Probability</p>
-            <p className="text-lg font-bold text-gray-900">
-              {(result.ai_probability || 0).toFixed(2)}%
-            </p>
-          </div>
-          <div className="p-3 bg-white rounded-lg">
-            <p className="text-gray-600 text-sm">Real Probability</p>
-            <p className="text-lg font-bold text-gray-900">
-              {(result.real_probability || 0).toFixed(2)}%
-            </p>
-          </div>
-        </div>
-      )}
-
-      <Button onClick={onClear} variant="secondary" className="w-full">
-        Analyze Another {result.isVideo ? 'Video' : 'Image'}
+      <Button onClick={onClear} variant="secondary" className="mt-6 w-full" size="lg">
+        <RefreshCw size={18} /> Analyze Another {result.isVideo ? 'Video' : 'Image'}
       </Button>
     </Card>
+  );
+};
+
+const MetricCard = ({ label, value, tone }) => {
+  const colors =
+    tone === 'rose'
+      ? 'border-rose-100 bg-white/80 text-rose-700'
+      : 'border-emerald-100 bg-white/80 text-emerald-700';
+
+  return (
+    <div className={`rounded-2xl border p-4 ${colors}`}>
+      <p className="text-xs font-bold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-2 text-2xl font-bold">{value}</p>
+    </div>
   );
 };

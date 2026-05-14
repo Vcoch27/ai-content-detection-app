@@ -13,17 +13,17 @@ export const Card = ({ children, className = '', padding = 'md', shadow = 'md' }
   const shadowClasses = {
     none: 'shadow-none',
     sm: 'shadow-sm',
-    md: 'shadow-md',
+    md: 'shadow-sm',
     lg: 'shadow-lg',
   };
 
   return (
     <div
       className={`
-        bg-white rounded-xl border border-gray-100
+        bg-white rounded-2xl border border-slate-200
         ${paddingClasses[padding]}
         ${shadowClasses[shadow]}
-        transition-all hover:shadow-lg
+        transition-all duration-200
         ${className}
       `}
     >

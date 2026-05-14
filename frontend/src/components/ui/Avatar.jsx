@@ -16,7 +16,7 @@ export const Avatar = ({ src, alt = 'User', size = 'md', className = '' }) => {
       src={src}
       alt={alt}
       className={`
-        rounded-full object-cover border-2 border-gray-200
+        rounded-full object-cover border border-white ring-2 ring-slate-200 shadow-sm
         ${sizeClasses[size]}
         ${className}
       `}
