@@ -151,7 +151,7 @@ export const apiClient = {
     });
   },
 
-  getHistory: async (page = 1, limit = 10) => {
+  getHistory: async (page = 1, limit = 9) => {
     return request(`/history?page=${page}&limit=${limit}`, {
       method: 'GET',
       auth: true,
@@ -225,10 +225,17 @@ export const apiClient = {
 export const handleApiError = (error) => {
   console.error('API Error:', error);
   if (error instanceof ApiError) {
+    const reason = error.payload?.reason || '';
+    const isAiServiceConnectionError =
+      error.payload?.error_type === 'AI_SERVICE_ERROR' &&
+      /connection refused|failed to connect|not reachable/i.test(`${error.message} ${reason}`);
+
     return {
       success: false,
       status: error.status,
-      message: error.message,
+      message: isAiServiceConnectionError
+        ? 'AI service is not running or is unreachable. Start the FastAPI service on port 8000, or update AI_SERVICE_URL for the backend.'
+        : error.message,
       payload: error.payload,
     };
   }

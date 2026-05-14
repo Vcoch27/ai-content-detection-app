@@ -9,7 +9,10 @@ import com.aicontentdetection.backend.repository.DetectionRecordRepository;
 import com.aicontentdetection.backend.service.DetectionRecordService;
 import com.aicontentdetection.backend.service.S3StorageService;
 import com.aicontentdetection.backend.service.S3StorageService.StoredObject;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,10 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -34,11 +36,18 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
     private final S3StorageService s3StorageService;
     private final ObjectMapper objectMapper;
 
+    private static final TypeReference<Map<String, Object>> METADATA_TYPE = new TypeReference<>() {
+    };
+
     @Value("${storage.quota.default-bytes:104857600}")
     private long defaultStorageQuotaBytes;
 
     @Override
     public DetectionRecord savePrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject storedObject) {
+        Map<String, Object> metadataFields = new LinkedHashMap<>();
+        metadataFields.put("cv_analysis", prediction.getCvAnalysis());
+        String metadata = serializeMetadata(metadataFields, "image");
+
         DetectionRecord record = DetectionRecord.builder()
                 .userId(userId)
                 .originalFilename(file.getOriginalFilename())
@@ -53,6 +62,7 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                 .aiServiceMessage(prediction.getMessage())
                 .source("AI_SERVICE")
                 .detectionType("IMAGE")
+                .metadata(metadata)
                 .build();
 
         return detectionRecordRepository.save(record);
@@ -60,17 +70,12 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
 
     @Override
     public DetectionRecord saveVideoPrediction(Long userId, MultipartFile file, AiPredictResponseDto prediction, StoredObject videoObject) {
-        String metadata = null;
-        try {
-            java.util.Map<String, Object> metaMap = new java.util.HashMap<>();
-            metaMap.put("consistency", prediction.getConsistency());
-            metaMap.put("votes", prediction.getVotes());
-            metaMap.put("timeline", prediction.getTimeline());
-            metaMap.put("cv_analysis", prediction.getCvAnalysis());
-            metadata = objectMapper.writeValueAsString(metaMap);
-        } catch (Exception e) {
-            log.error("Failed to serialize video metadata", e);
-        }
+        Map<String, Object> metadataFields = new LinkedHashMap<>();
+        metadataFields.put("cv_analysis", prediction.getCvAnalysis());
+        metadataFields.put("timeline", prediction.getTimeline());
+        metadataFields.put("votes", prediction.getVotes());
+        metadataFields.put("consistency", prediction.getConsistency());
+        String metadata = serializeMetadata(metadataFields, "video");
 
         DetectionRecord record = DetectionRecord.builder()
                 .userId(userId)
@@ -90,6 +95,26 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
         return detectionRecordRepository.save(record);
     }
 
+    private String serializeMetadata(Map<String, Object> fields, String detectionType) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        fields.forEach((key, value) -> {
+            if (value != null) {
+                metadata.put(key, value);
+            }
+        });
+
+        if (metadata.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (Exception e) {
+            log.error("Failed to serialize {} metadata", detectionType, e);
+            return null;
+        }
+    }
+
     @Override
     public DetectionHistoryResponseDto getHistory(Long userId, int page, int limit) {
         int normalizedPage = Math.max(page, 1);
@@ -102,11 +127,14 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
                         .id(record.getId())
                         .filename(record.getOriginalFilename())
                         .prediction(record.getPrediction())
-                        .confidence(record.getConfidence() != null ? record.getConfidence() : 0.0)
+                        .confidence(normalizeStoredConfidence(record.getConfidence()))
                         .timestamp(record.getCreatedAt())
                         .storageBucket(record.getStorageBucket())
                         .storageKey(record.getStorageKey())
                         .detectionType(record.getDetectionType())
+                        .aiProbability(record.getAiProbability())
+                        .realProbability(record.getRealProbability())
+                        .metadata(parseMetadata(record.getMetadata()))
                         .build())
                 .toList();
 
@@ -154,5 +182,33 @@ public class DetectionRecordServiceImpl implements DetectionRecordService {
         return appUserRepository.findById(userId)
                 .map(user -> user.getStorageQuotaBytes() != null ? user.getStorageQuotaBytes() : defaultStorageQuotaBytes)
                 .orElse(defaultStorageQuotaBytes);
+    }
+
+    private double normalizeStoredConfidence(Double confidence) {
+        if (confidence == null) {
+            return 0.0;
+        }
+
+        double value = confidence;
+        if (value > 0 && value <= 1) {
+            value *= 100;
+        } else if (value > 100) {
+            value /= 100;
+        }
+
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private Map<String, Object> parseMetadata(String metadata) {
+        if (metadata == null || metadata.isBlank()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(metadata, METADATA_TYPE);
+        } catch (Exception e) {
+            log.warn("Failed to parse detection metadata for history response", e);
+            return null;
+        }
     }
 }

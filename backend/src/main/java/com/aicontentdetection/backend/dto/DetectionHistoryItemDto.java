@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Builder
@@ -20,4 +21,7 @@ public class DetectionHistoryItemDto {
     private String storageBucket;
     private String storageKey;
     private String detectionType;
+    private Double aiProbability;
+    private Double realProbability;
+    private Map<String, Object> metadata;
 }
