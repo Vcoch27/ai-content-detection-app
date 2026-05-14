@@ -158,10 +158,14 @@ public class AiGatewayServiceImpl implements AiGatewayService {
                         e
                 );
             } else {
+                String detail = e.getMessage() != null ? e.getMessage() : "Unknown connection error";
+                boolean connectionRefused = detail.toLowerCase().contains("connection refused");
                 throw new AiServiceException(
-                        "AI service connection error: " + e.getMessage(),
+                        connectionRefused ? "AI service is unavailable" : "AI service connection error",
                         HttpStatus.BAD_GATEWAY.value(),
-                        "Failed to connect to AI service",
+                        connectionRefused
+                                ? "FastAPI service is not reachable at " + url
+                                : "Failed to connect to AI service: " + detail,
                         e
                 );
             }

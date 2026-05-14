@@ -41,6 +41,7 @@ public class AiGatewayServiceTest {
         // Set the configuration properties using reflection
                 ReflectionTestUtils.setField(aiGatewayService, "aiServiceBaseUrl", "http://127.0.0.1:8000");
         ReflectionTestUtils.setField(aiGatewayService, "predictEndpoint", "/predict");
+        ReflectionTestUtils.setField(aiGatewayService, "predictVideoEndpoint", "/predict-video");
     }
 
     @Test
@@ -100,6 +101,28 @@ public class AiGatewayServiceTest {
         // Assert
         assertEquals("REAL-IMAGE", result.getPrediction());
         assertEquals(92.50, result.getConfidenceAsDouble());
+    }
+
+    @Test
+    void testPredictImageBytes_NormalizesRatioConfidence() {
+        byte[] imageBytes = new byte[]{1, 2, 3, 4, 5};
+
+        AiPredictResponseDto expectedResponse = AiPredictResponseDto.builder()
+                .status("success")
+                .prediction("AI_GENERATED")
+                .confidence("0.64")
+                .build();
+
+        when(restTemplate.postForObject(
+                anyString(),
+                any(),
+                eq(AiPredictResponseDto.class)
+        )).thenReturn(expectedResponse);
+
+        AiPredictResponseDto result = aiGatewayService.predictImageBytes(imageBytes, "test.jpg");
+
+        assertEquals("64.00%", result.getConfidence());
+        assertEquals(64.00, result.getConfidenceAsDouble());
     }
 
     @Test
@@ -240,6 +263,28 @@ public class AiGatewayServiceTest {
                 .build();
 
         assertEquals(85.50, response.getConfidenceAsDouble());
+    }
+
+    @Test
+    void testGetConfidenceAsDouble_RatioWithoutPercent() {
+        AiPredictResponseDto response = AiPredictResponseDto.builder()
+                .status("success")
+                .prediction("AI-GENERATED")
+                .confidence("0.57")
+                .build();
+
+        assertEquals(57.00, response.getConfidenceAsDouble());
+    }
+
+    @Test
+    void testGetConfidenceAsDouble_ExplicitSmallPercentage() {
+        AiPredictResponseDto response = AiPredictResponseDto.builder()
+                .status("success")
+                .prediction("AI-GENERATED")
+                .confidence("0.57%")
+                .build();
+
+        assertEquals(0.57, response.getConfidenceAsDouble());
     }
 
     @Test

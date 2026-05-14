@@ -76,6 +76,8 @@ public class AiPredictControllerTest {
                         return header.substring(7);
                 });
                 when(authService.getUserByToken(anyString())).thenReturn(currentUser);
+                when(detectionRecordService.getStorageQuota(any(Long.class)))
+                                .thenReturn(new DetectionRecordService.StorageQuota(0L, 100L * 1024L * 1024L));
                 when(s3StorageService.upload(any(MultipartFile.class), anyString()))
                                 .thenReturn(new StoredObject("ai-detect-images", "detections/1/2026-05-11/test.jpg", "etag"));
 

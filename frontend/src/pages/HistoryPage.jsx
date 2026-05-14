@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, MessageSquarePlus, ImageOff, Trash2, Video } from 'lucide-react';
+import { Activity, Filter, MessageSquarePlus, ImageOff, Trash2, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
 import { Card } from '../components/ui/Card';
@@ -57,7 +57,45 @@ export const HistoryPage = () => {
       return 0;
     }
 
+    if (numeric > 0 && numeric <= 1) {
+      return numeric * 100;
+    }
+
     return numeric > 100 ? numeric / 100 : numeric;
+  };
+
+  const parseMetadata = (metadata) => {
+    if (!metadata) {
+      return {};
+    }
+
+    if (typeof metadata === 'object') {
+      return metadata;
+    }
+
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return {};
+    }
+  };
+
+  const getCvAnalysis = (item) => {
+    const metadata = parseMetadata(item.metadata);
+    return Array.isArray(metadata.cv_analysis) ? metadata.cv_analysis : [];
+  };
+
+  const getVideoMetrics = (item) => {
+    const metadata = parseMetadata(item.metadata);
+    return {
+      consistency: typeof metadata.consistency === 'number' ? metadata.consistency : null,
+      votes: metadata.votes && typeof metadata.votes === 'object' ? metadata.votes : null,
+    };
+  };
+
+  const formatImpactScore = (score) => {
+    const numeric = Number(score || 0);
+    return Number.isNaN(numeric) ? '0.00' : numeric.toFixed(2);
   };
 
   const handleDeleteItem = async (id) => {
@@ -173,10 +211,20 @@ export const HistoryPage = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredHistory.map((item) => (
+                {filteredHistory.map((item) => {
+                  const prediction = item.prediction || '';
+                  const isVideo = item.detectionType === 'VIDEO';
+                  const isAiPrediction = prediction.toUpperCase().includes('AI');
+                  const cvAnalysis = getCvAnalysis(item).slice(0, 2);
+                  const videoMetrics = getVideoMetrics(item);
+                  const hasVideoMetrics =
+                    isVideo && (videoMetrics.consistency !== null || videoMetrics.votes);
+                  const hasAnalysis = hasVideoMetrics || cvAnalysis.length > 0;
+
+                  return (
                   <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     {/* Thumbnail/Preview */}
-                    {item.detectionType === 'VIDEO' ? (
+                    {isVideo ? (
                       <video
                         src={getImageUrl(item)}
                         className="w-full h-48 object-cover bg-gray-100"
@@ -193,7 +241,7 @@ export const HistoryPage = () => {
                     {getImageUrl(item) === '' && (
                       <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-500">
                         <div className="text-center">
-                          {item.detectionType === 'VIDEO' ? (
+                          {isVideo ? (
                             <Video size={28} className="mx-auto mb-2" />
                           ) : (
                             <ImageOff size={28} className="mx-auto mb-2" />
@@ -213,17 +261,13 @@ export const HistoryPage = () => {
 
                       <div className="flex items-center justify-between mb-3">
                         <Badge
-                          variant={
-                            (item.prediction || '').toUpperCase().includes('AI')
-                              ? 'error'
-                              : 'success'
-                          }
+                          variant={isAiPrediction ? 'error' : 'success'}
                         >
-                          {item.detectionType === 'VIDEO'
-                            ? item.prediction.includes('AI')
+                          {isVideo
+                            ? isAiPrediction
                               ? 'AI VIDEO'
                               : 'REAL VIDEO'
-                            : item.prediction}
+                            : prediction}
                         </Badge>
                         <span className="text-sm font-semibold text-gray-900">
                           {normalizeConfidenceValue(item.confidence).toFixed(2)}%
@@ -231,6 +275,48 @@ export const HistoryPage = () => {
                       </div>
 
                       <p className="text-xs text-gray-500 mb-4">{formatDate(item.timestamp)}</p>
+
+                      {hasAnalysis && (
+                        <div className="border-t border-gray-100 pt-3 mb-4 space-y-3">
+                          {hasVideoMetrics && (
+                            <div className="flex items-center justify-between gap-3 text-xs text-gray-600">
+                              <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
+                                <Activity size={14} /> Video metrics
+                              </span>
+                              <span className="text-right">
+                                {videoMetrics.consistency !== null
+                                  ? `${Math.round(videoMetrics.consistency)}% consistent`
+                                  : ''}
+                                {videoMetrics.votes
+                                  ? ` | AI ${videoMetrics.votes.AI || 0} / Real ${
+                                      videoMetrics.votes.REAL || 0
+                                    }`
+                                  : ''}
+                              </span>
+                            </div>
+                          )}
+
+                          {cvAnalysis.length > 0 && (
+                            <div className="space-y-2">
+                              {cvAnalysis.map((feature, index) => (
+                                <div key={`${item.id}-${feature.feature_name || index}`}>
+                                  <div className="flex items-center justify-between gap-3 text-xs">
+                                    <span className="font-semibold text-gray-700 truncate">
+                                      {feature.feature_name || 'CV feature'}
+                                    </span>
+                                    <span className="shrink-0 text-blue-600 font-semibold">
+                                      {formatImpactScore(feature.impact_score)}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 truncate">
+                                    {feature.category || 'Analysis'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <div className="flex gap-2">
                         <Button
@@ -254,7 +340,8 @@ export const HistoryPage = () => {
                       </div>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
