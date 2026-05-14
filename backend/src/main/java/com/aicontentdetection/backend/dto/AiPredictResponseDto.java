@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -107,8 +108,10 @@ public class AiPredictResponseDto {
             if (confidence == null) {
                 return -1;
             }
+            boolean explicitPercentage = confidence.contains("%");
             String cleanedConfidence = confidence.replaceAll("[^0-9.]", "");
-            return Double.parseDouble(cleanedConfidence);
+            double confidenceValue = Double.parseDouble(cleanedConfidence);
+            return normalizeProbabilityScale(confidenceValue, explicitPercentage);
         } catch (NumberFormatException e) {
             return -1;
         }
@@ -162,9 +165,9 @@ public class AiPredictResponseDto {
         Double confidenceValue = upstream.getConfidenceAsDouble();
         if (confidenceValue < 0) {
             if ("AI-GENERATED".equalsIgnoreCase(normalizedPrediction) && upstream.getAiProbability() != null) {
-                confidenceValue = upstream.getAiProbability();
+                confidenceValue = normalizeProbabilityScale(upstream.getAiProbability(), false);
             } else if ("REAL-IMAGE".equalsIgnoreCase(normalizedPrediction) && upstream.getRealProbability() != null) {
-                confidenceValue = upstream.getRealProbability();
+                confidenceValue = normalizeProbabilityScale(upstream.getRealProbability(), false);
             }
         }
 
@@ -172,6 +175,13 @@ public class AiPredictResponseDto {
             return upstream.getConfidence();
         }
 
-        return String.format("%.2f%%", confidenceValue);
+        return String.format(Locale.US, "%.2f%%", confidenceValue);
+    }
+
+    private static double normalizeProbabilityScale(double value, boolean explicitPercentage) {
+        if (!explicitPercentage && value >= 0 && value <= 1) {
+            value = value * 100;
+        }
+        return Math.round(value * 100.0) / 100.0;
     }
 }
