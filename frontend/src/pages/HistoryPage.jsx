@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, Filter, MessageSquarePlus, ImageOff, Trash2, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
@@ -11,30 +11,51 @@ import { ROUTES } from '../constants/theme';
 /**
  * HistoryPage - View detection history
  */
+const HISTORY_PAGE_SIZE = 9;
+
 export const HistoryPage = () => {
   const [filter, setFilter] = useState('all'); // 'all', 'ai', 'real', 'video'
   const [history, setHistory] = useState([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: HISTORY_PAGE_SIZE,
+  });
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingIds, setDeletingIds] = useState([]);
   const navigate = useNavigate();
 
-  // Fetch history on mount
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
+  const fetchHistory = useCallback(async (page, { showLoading = true } = {}) => {
+    try {
+      if (showLoading) {
         setIsLoading(true);
-        const response = await apiClient.getHistory();
-        setHistory(response.data || response || []);
-      } catch (err) {
-        setError(err.message || 'Failed to fetch history');
-      } finally {
+      }
+      setError(null);
+
+      const response = await apiClient.getHistory(page, HISTORY_PAGE_SIZE);
+      const data = response.data || response || [];
+      setHistory(data);
+      setPagination({
+        total: Number(response.total ?? data.length),
+        page: Number(response.page ?? page),
+        limit: Number(response.limit ?? HISTORY_PAGE_SIZE),
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to fetch history');
+    } finally {
+      if (showLoading) {
         setIsLoading(false);
       }
-    };
-
-    fetchHistory();
+    }
   }, []);
+
+  useEffect(() => {
+    fetchHistory(currentPage);
+  }, [currentPage, fetchHistory]);
+
+  const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.limit));
 
   const filteredHistory = useMemo(() => {
     return history.filter((item) => {
@@ -107,7 +128,14 @@ export const HistoryPage = () => {
     try {
       setDeletingIds((current) => [...current, id]);
       await apiClient.deleteHistoryItem(id);
-      setHistory((current) => current.filter((item) => item.id !== id));
+      const nextTotal = Math.max(pagination.total - 1, 0);
+      const nextLastPage = Math.max(1, Math.ceil(nextTotal / pagination.limit));
+
+      if (currentPage > nextLastPage) {
+        setCurrentPage(nextLastPage);
+      } else {
+        await fetchHistory(currentPage, { showLoading: false });
+      }
     } catch (err) {
       setError(err.message || 'Failed to delete history item');
     } finally {
@@ -167,7 +195,7 @@ export const HistoryPage = () => {
                     : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                <Filter size={18} /> All Results ({history.length})
+                <Filter size={18} /> All Results ({pagination.total})
               </button>
               <button
                 onClick={() => setFilter('ai')}
@@ -342,6 +370,42 @@ export const HistoryPage = () => {
                   </Card>
                   );
                 })}
+              </div>
+            )}
+
+            {pagination.total > pagination.limit && (
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <p className="text-sm text-gray-500">
+                  Showing {(pagination.page - 1) * pagination.limit + 1}-
+                  {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                  {pagination.total}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentPage <= 1 || isLoading}
+                    onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                  >
+                    Previous
+                  </Button>
+
+                  <span className="px-3 py-2 text-sm font-semibold text-gray-700">
+                    Page {pagination.page} / {totalPages}
+                  </span>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={currentPage >= totalPages || isLoading}
+                    onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </>

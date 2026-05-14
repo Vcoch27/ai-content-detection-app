@@ -151,7 +151,7 @@ export const apiClient = {
     });
   },
 
-  getHistory: async (page = 1, limit = 10) => {
+  getHistory: async (page = 1, limit = 9) => {
     return request(`/history?page=${page}&limit=${limit}`, {
       method: 'GET',
       auth: true,
